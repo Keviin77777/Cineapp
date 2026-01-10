@@ -34,31 +34,69 @@ class Top10Card extends StatelessWidget {
           : null,
       child: Container(
         width: position >= 10 ? 215 : 185,
-        height: 215,
+        height: 185,
         margin: const EdgeInsets.only(right: 8),
         child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            // Número grande atrás do card - estilo Netflix com opacidade baixa
+            // Número grande atrás do card - estilo Netflix
             Positioned(
-              left: -20,
-              bottom: -10,
-              child: Text(
-                position.toString(),
-                style: TextStyle(
-                  fontSize: 120,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white.withOpacity(0.12),
-                  height: 0.8,
-                ),
+              left: position >= 10 ? -10 : 5,
+              bottom: -15,
+              child: Stack(
+                children: [
+                  // Sombra do número para dar profundidade
+                  Text(
+                    position.toString(),
+                    style: TextStyle(
+                      fontSize: 110,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Arial',
+                      height: 0.8,
+                      color: Colors.black.withOpacity(0.8),
+                    ),
+                  ),
+                  // Contorno do número (stroke) - mais visível
+                  Transform.translate(
+                    offset: const Offset(-2, -2),
+                    child: Text(
+                      position.toString(),
+                      style: TextStyle(
+                        fontSize: 110,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Arial',
+                        height: 0.8,
+                        foreground: Paint()
+                          ..style = PaintingStyle.stroke
+                          ..strokeWidth = 4
+                          ..color = Colors.grey[500]!,
+                      ),
+                    ),
+                  ),
+                  // Preenchimento do número (escuro embutido)
+                  Transform.translate(
+                    offset: const Offset(-2, -2),
+                    child: Text(
+                      position.toString(),
+                      style: const TextStyle(
+                        fontSize: 110,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Arial',
+                        height: 0.8,
+                        color: Color(0xFF0F0F0F),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            // Poster do filme/série - maior que os cards normais
+            // Poster do filme/série (fica na frente do número)
             Positioned(
               left: position >= 10 ? 75 : 45,
               top: 0,
               child: Container(
                 width: 145,
-                height: 215,
+                height: 185,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
@@ -78,7 +116,7 @@ class Top10Card extends StatelessWidget {
                   child: CachedNetworkImage(
                     imageUrl: BaserowService.getImageUrl(posterPath),
                     width: 145,
-                    height: 215,
+                    height: 185,
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
                       color: Colors.grey[800],

@@ -5,6 +5,7 @@ import '../services/baserow_service.dart';
 import '../models/movie.dart';
 import '../widgets/skeleton_loading.dart';
 import '../widgets/movie_card.dart';
+import 'video_player_screen.dart';
 
 class MovieDetailScreen extends StatefulWidget {
   final int movieId;
@@ -252,7 +253,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         Container(width: 4, height: 4, decoration: BoxDecoration(color: Colors.grey[400], shape: BoxShape.circle)),
                         const SizedBox(width: 8),
                         Text(
-                          _movie!.duration!,
+                          _formatDuration(_movie!.duration),
                           style: TextStyle(color: Colors.grey[400], fontSize: 14),
                         ),
                       ],
@@ -286,7 +287,27 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () {
-                            // TODO: Abrir player com streamUrl
+                            final streamUrl = _movie!.streamUrl;
+                            if (streamUrl != null && streamUrl.isNotEmpty) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => VideoPlayerScreen(
+                                    videoUrl: streamUrl,
+                                    title: _movie!.title,
+                                    category: _movie!.categories?.split(',').first.trim(),
+                                    contentId: _movie!.id,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Link do filme não disponível'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
                           },
                           icon: const Icon(Icons.play_arrow),
                           label: const Text('Assistir'),
@@ -338,6 +359,22 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       return '${(views / 1000).toStringAsFixed(1)}K';
     }
     return views.toString();
+  }
+
+  String _formatDuration(String? duration) {
+    if (duration == null || duration.isEmpty) return '';
+    
+    // Tenta converter para número (minutos)
+    final minutes = int.tryParse(duration.replaceAll(RegExp(r'[^0-9]'), ''));
+    if (minutes == null) return duration;
+    
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+    
+    if (hours > 0) {
+      return '${hours}h ${mins}min';
+    }
+    return '${mins}min';
   }
 
   String _getHighQualityImageUrl(String? imagePath) {

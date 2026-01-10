@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'dart:async';
+import '../services/baserow_service.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
@@ -9,6 +10,7 @@ class VideoPlayerScreen extends StatefulWidget {
   final int? episodeNumber;
   final int? seasonNumber;
   final String? category;
+  final int? contentId; // ID do filme/série para contar views
 
   const VideoPlayerScreen({
     super.key,
@@ -17,6 +19,7 @@ class VideoPlayerScreen extends StatefulWidget {
     this.episodeNumber,
     this.seasonNumber,
     this.category,
+    this.contentId,
   });
 
   @override
@@ -24,20 +27,25 @@ class VideoPlayerScreen extends StatefulWidget {
 }
 
 class _VideoPlayerScreenState extends State<VideoPlayerScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   VideoPlayerController? _controller;
+  final BaserowService _baserowService = BaserowService();
   bool _isLoading = true;
   bool _showControls = true;
+  bool _viewCounted = false;
   bool _isPlaying = false;
   bool _isBuffering = false;
   bool _isDragging = false;
-  int _fitModeIndex = 0;
+  int _fitModeIndex = 2; // Inicia em STRETCH
   double _dragValue = 0.0;
   String? _errorMessage;
   Timer? _hideControlsTimer;
-  double _brightness = 0.5;
-  double _volume = 1.0;
+  Timer? _hideCategoryTimer;
   late AnimationController _loadingController;
+  late AnimationController _categoryAnimController;
+  late Animation<Offset> _categorySlideAnimation;
+  late Animation<double> _categoryFadeAnimation;
+  bool _showCategoryBanner = false;
 
   final List<Map<String, dynamic>> _fitModes = [
     {'fit': BoxFit.contain, 'name': 'NORMAL', 'icon': Icons.fit_screen},
@@ -54,6 +62,27 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+    
+    // Animação do banner de categoria
+    _categoryAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _categorySlideAnimation = Tween<Offset>(
+      begin: const Offset(-1.0, 0.0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _categoryAnimController,
+      curve: Curves.easeOutCubic,
+    ));
+    _categoryFadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _categoryAnimController,
+      curve: Curves.easeOut,
+    ));
+    
     _initPlayer();
   }
 
@@ -82,6 +111,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
           _isPlaying = true;
         });
         _startHideControlsTimer();
+        _showCategoryBannerAnimation();
+        _countView();
       }
     } catch (e) {
       if (mounted) {
@@ -112,6 +143,29 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     _hideControlsTimer = Timer(const Duration(seconds: 4), () {
       if (mounted && _isPlaying) setState(() => _showControls = false);
     });
+  }
+
+  void _showCategoryBannerAnimation() {
+    if (widget.category == null || widget.category!.isEmpty) return;
+    
+    setState(() => _showCategoryBanner = true);
+    _categoryAnimController.forward();
+    
+    _hideCategoryTimer?.cancel();
+    _hideCategoryTimer = Timer(const Duration(seconds: 7), () {
+      if (mounted) {
+        _categoryAnimController.reverse().then((_) {
+          if (mounted) setState(() => _showCategoryBanner = false);
+        });
+      }
+    });
+  }
+
+  // Contar visualização no Baserow
+  void _countView() async {
+    if (_viewCounted || widget.contentId == null) return;
+    _viewCounted = true;
+    await _baserowService.incrementViews(widget.contentId!);
   }
 
   void _toggleControls() {
@@ -164,7 +218,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
   @override
   void dispose() {
     _hideControlsTimer?.cancel();
+    _hideCategoryTimer?.cancel();
     _loadingController.dispose();
+    _categoryAnimController.dispose();
     _controller?.removeListener(_videoListener);
     _controller?.dispose();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
@@ -197,7 +253,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
             if (_isLoading) _buildLoading(),
             if (_isBuffering && !_isLoading) _buildBufferingIndicator(),
             if (_errorMessage != null) _buildError(),
-            if (_showControls && !_isLoading && _errorMessage == null) _buildControls(),
+            if (_showCategoryBanner && !_isLoading && _errorMessage == null) _buildCategoryBanner(),
+            if (_showControls && !_isLoading && _errorMessage == null) ...[
+              // Overlay escuro quando controles estão visíveis
+              Container(color: Colors.black.withOpacity(0.4)),
+              _buildControls(),
+            ],
           ],
         ),
       ),
@@ -263,6 +324,70 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     );
   }
 
+  Widget _buildCategoryBanner() {
+    return Positioned(
+      left: 16,
+      top: 60,
+      child: SlideTransition(
+        position: _categorySlideAnimation,
+        child: FadeTransition(
+          opacity: _categoryFadeAnimation,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 3,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF12CDD9),
+                  borderRadius: BorderRadius.circular(2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF12CDD9).withOpacity(0.5),
+                      blurRadius: 6,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.category!.toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      shadows: [
+                        Shadow(blurRadius: 4, color: Colors.black),
+                      ],
+                    ),
+                  ),
+                  if (widget.seasonNumber != null && widget.episodeNumber != null)
+                    Text(
+                      'T${widget.seasonNumber} • E${widget.episodeNumber}',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 10,
+                        shadows: const [
+                          Shadow(blurRadius: 4, color: Colors.black),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildControls() {
     return Container(
       decoration: BoxDecoration(
@@ -277,20 +402,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
         child: Column(
           children: [
             _buildTopBar(),
-            if (widget.category != null)
-              Padding(
-                padding: const EdgeInsets.only(left: 20, top: 4),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Row(
-                    children: [
-                      Container(width: 3, height: 14, color: const Color(0xFF12CDD9)),
-                      const SizedBox(width: 8),
-                      Text(widget.category!.toUpperCase(), style: TextStyle(color: Colors.grey[400], fontSize: 11, fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ),
-              ),
             const Spacer(),
             _buildCenterControls(),
             const Spacer(),
@@ -346,82 +457,36 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
 
 
   Widget _buildCenterControls() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          // Brilho
-          Column(
-            mainAxisSize: MainAxisSize.min,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        GestureDetector(
+          onTap: () => _seekRelative(-10),
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              const Icon(Icons.brightness_6, color: Colors.white, size: 20),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 100,
-                child: RotatedBox(
-                  quarterTurns: -1,
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(trackHeight: 3, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6), activeTrackColor: Colors.white, inactiveTrackColor: Colors.grey[700], thumbColor: Colors.white),
-                    child: Slider(value: _brightness, onChanged: (v) => setState(() => _brightness = v)),
-                  ),
-                ),
-              ),
+              Transform.flip(flipX: true, child: const Icon(Icons.refresh, color: Colors.white, size: 40)),
+              const Text('10', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
             ],
           ),
-          const Spacer(),
-          // Play controls
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+        ),
+        const SizedBox(width: 50),
+        GestureDetector(
+          onTap: _togglePlayPause,
+          child: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 55),
+        ),
+        const SizedBox(width: 50),
+        GestureDetector(
+          onTap: () => _seekRelative(10),
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              GestureDetector(
-                onTap: () => _seekRelative(-10),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Transform.flip(flipX: true, child: const Icon(Icons.refresh, color: Colors.white, size: 40)),
-                    const Text('10', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 40),
-              GestureDetector(
-                onTap: _togglePlayPause,
-                child: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 55),
-              ),
-              const SizedBox(width: 40),
-              GestureDetector(
-                onTap: () => _seekRelative(10),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    const Icon(Icons.refresh, color: Colors.white, size: 40),
-                    const Text('10', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
+              const Icon(Icons.refresh, color: Colors.white, size: 40),
+              const Text('10', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
             ],
           ),
-          const Spacer(),
-          // Volume
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(_volume > 0 ? Icons.volume_up : Icons.volume_off, color: Colors.white, size: 20),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 100,
-                child: RotatedBox(
-                  quarterTurns: -1,
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(trackHeight: 3, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6), activeTrackColor: Colors.white, inactiveTrackColor: Colors.grey[700], thumbColor: Colors.white),
-                    child: Slider(value: _volume, onChanged: (v) { setState(() => _volume = v); _controller?.setVolume(v); }),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -484,9 +549,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildBottomBtn(Icons.lock_outline, 'BLOQUEAR'),
-              _buildBottomBtn(Icons.video_library_outlined, 'EPISÓDIOS'),
+              if (widget.episodeNumber != null) _buildBottomBtn(Icons.video_library_outlined, 'EPISÓDIOS'),
               _buildBottomBtn(Icons.speed, 'NORMAL'),
-              _buildBottomBtn(Icons.skip_next, 'PRÓX. EP.'),
+              if (widget.episodeNumber != null) _buildBottomBtn(Icons.skip_next, 'PRÓX. EP.'),
             ],
           ),
         ],

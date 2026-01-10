@@ -39,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Movie> _top10Movies = [];
   List<TVShow> _top10TVShows = [];
   List<TVShow> _trendingTVShows = [];
+  List<dynamic> _latestContent = [];
 
   @override
   void initState() {
@@ -65,6 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _baserowService.getTop10Movies(),
         _baserowService.getTop10TVShows(),
         _baserowService.getTrendingTVShows(),
+        _baserowService.getLatestContent(),
       ]);
 
       if (mounted) {
@@ -74,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _top10Movies = results[2] as List<Movie>;
           _top10TVShows = results[3] as List<TVShow>;
           _trendingTVShows = results[4] as List<TVShow>;
+          _latestContent = results[5] as List<dynamic>;
           _isLoading = false;
         });
       }
@@ -348,6 +351,10 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
             _buildCategoriesSection(),
             const SizedBox(height: 30),
+            // Últimos Adicionados
+            // Novidades Recém Adicionadas
+            _buildLatestSection(),
+            const SizedBox(height: 30),
             if (_trendingMovies.isNotEmpty)
               TrendingCarousel(movies: _trendingMovies.take(10).toList()),
             const SizedBox(height: 30),
@@ -428,37 +435,35 @@ class _HomeScreenState extends State<HomeScreen> {
     final Set<int> usedMovieIds = {};
     final Set<int> usedTVShowIds = {};
     
-    // Adiciona alguns filmes do top 10 (com badge)
-    for (final movie in _top10Movies.take(3)) {
-      if (!usedMovieIds.contains(movie.id)) {
+    // Adiciona filmes do top 10 (com badge)
+    for (final movie in _top10Movies.take(4)) {
+      if (!usedMovieIds.contains(movie.id) && cards.length < 10) {
         usedMovieIds.add(movie.id);
         cards.add(FeaturedMovieCard(movie: movie, showTop10Badge: true));
       }
     }
     
-    // Adiciona algumas séries do top 10 (com badge)
-    for (final tvShow in _top10TVShows.take(3)) {
-      if (!usedTVShowIds.contains(tvShow.id)) {
+    // Adiciona séries do top 10 (com badge)
+    for (final tvShow in _top10TVShows.take(4)) {
+      if (!usedTVShowIds.contains(tvShow.id) && cards.length < 10) {
         usedTVShowIds.add(tvShow.id);
         cards.add(FeaturedTVShowCard(tvShow: tvShow, showTop10Badge: true));
       }
     }
     
     // Adiciona filmes populares (sem badge) - evita duplicados
-    for (final movie in _popularMovies.take(4)) {
-      if (!usedMovieIds.contains(movie.id)) {
+    for (final movie in _popularMovies) {
+      if (!usedMovieIds.contains(movie.id) && cards.length < 10) {
         usedMovieIds.add(movie.id);
         cards.add(FeaturedMovieCard(movie: movie, showTop10Badge: false));
-        if (cards.where((c) => c is FeaturedMovieCard && !(c as FeaturedMovieCard).showTop10Badge).length >= 2) break;
       }
     }
     
     // Adiciona séries em alta (sem badge) - evita duplicados
-    for (final tvShow in _trendingTVShows.take(4)) {
-      if (!usedTVShowIds.contains(tvShow.id)) {
+    for (final tvShow in _trendingTVShows) {
+      if (!usedTVShowIds.contains(tvShow.id) && cards.length < 10) {
         usedTVShowIds.add(tvShow.id);
         cards.add(FeaturedTVShowCard(tvShow: tvShow, showTop10Badge: false));
-        if (cards.where((c) => c is FeaturedTVShowCard && !(c as FeaturedTVShowCard).showTop10Badge).length >= 2) break;
       }
     }
     
@@ -638,6 +643,46 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       color: Colors.black,
       child: const Center(child: Text('Perfil')),
+    );
+  }
+
+  Widget _buildLatestSection() {
+    // Usa os filmes populares invertidos como "novidades"
+    final latestMovies = _popularMovies.reversed.take(15).toList();
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 20, right: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.fiber_new, color: Color(0xFF12CDD9), size: 24),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Novidades Recém Adicionadas',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 20),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 175,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: latestMovies.length,
+            itemBuilder: (context, index) => MovieCard(movie: latestMovies[index]),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -7,6 +7,14 @@ import '../screens/movie_detail_screen.dart';
 import '../screens/tv_show_detail_screen.dart';
 import '../utils/page_transitions.dart';
 
+// Matrix para ajuste de contraste +15%, saturação -8%, brilho -2% (cinema look)
+const List<double> _cinemaColorMatrix = [
+  1.15, 0.0, 0.0, 0.0, -12.0,
+  0.0, 1.07, 0.0, 0.0, -12.0,
+  0.0, 0.0, 1.07, 0.0, -12.0,
+  0.0, 0.0, 0.0, 1.0, 0.0,
+];
+
 class FeaturedMovieCard extends StatelessWidget {
   final Movie movie;
   final bool showTop10Badge;
@@ -32,7 +40,7 @@ class FeaturedMovieCard extends StatelessWidget {
         );
       },
       child: Container(
-        width: 205,
+        width: 190,
         height: 280,
         margin: const EdgeInsets.only(right: 5),
         decoration: BoxDecoration(
@@ -41,11 +49,12 @@ class FeaturedMovieCard extends StatelessWidget {
             color: Colors.grey[700]!.withOpacity(0.5),
             width: 1,
           ),
+          // Sombra Netflix: blur alto, offset vertical, opacidade forte
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.5),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(0.55),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
@@ -54,18 +63,39 @@ class FeaturedMovieCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CachedNetworkImage(
-                imageUrl: BaserowService.getImageUrl(movie.posterPath),
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  color: Colors.grey[800],
-                  child: const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
+              // Imagem com tratamento cinema (contraste/saturação)
+              ColorFiltered(
+                colorFilter: const ColorFilter.matrix(_cinemaColorMatrix),
+                child: CachedNetworkImage(
+                  imageUrl: BaserowService.getImageUrl(movie.posterPath),
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.high,
+                  placeholder: (context, url) => Container(
+                    color: Colors.grey[800],
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey[800],
+                    child: const Icon(Icons.movie, size: 40),
                   ),
                 ),
-                errorWidget: (context, url, error) => Container(
-                  color: Colors.grey[800],
-                  child: const Icon(Icons.movie, size: 40),
+              ),
+              // Overlay degradê vertical (segredo Netflix)
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: [0.0, 0.45, 0.75, 1.0],
+                    colors: [
+                      Color(0x0D000000), // 5% preto
+                      Color(0x4D000000), // 30% preto
+                      Color(0xB3000000), // 70% preto
+                      Color(0xE6000000), // 90% preto
+                    ],
+                  ),
                 ),
               ),
               // Badge TOP 10 - vermelho forte
@@ -112,6 +142,7 @@ class FeaturedMovieCard extends StatelessWidget {
   }
 }
 
+
 class FeaturedTVShowCard extends StatelessWidget {
   final TVShow tvShow;
   final bool showTop10Badge;
@@ -137,7 +168,7 @@ class FeaturedTVShowCard extends StatelessWidget {
         );
       },
       child: Container(
-        width: 205,
+        width: 190,
         height: 280,
         margin: const EdgeInsets.only(right: 5),
         decoration: BoxDecoration(
@@ -146,11 +177,12 @@ class FeaturedTVShowCard extends StatelessWidget {
             color: Colors.grey[700]!.withOpacity(0.5),
             width: 1,
           ),
+          // Sombra Netflix: blur alto, offset vertical, opacidade forte
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.5),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(0.55),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
@@ -159,18 +191,39 @@ class FeaturedTVShowCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CachedNetworkImage(
-                imageUrl: BaserowService.getImageUrl(tvShow.posterPath),
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  color: Colors.grey[800],
-                  child: const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
+              // Imagem com tratamento cinema (contraste/saturação)
+              ColorFiltered(
+                colorFilter: const ColorFilter.matrix(_cinemaColorMatrix),
+                child: CachedNetworkImage(
+                  imageUrl: BaserowService.getImageUrl(tvShow.posterPath),
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.high,
+                  placeholder: (context, url) => Container(
+                    color: Colors.grey[800],
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey[800],
+                    child: const Icon(Icons.tv, size: 40),
                   ),
                 ),
-                errorWidget: (context, url, error) => Container(
-                  color: Colors.grey[800],
-                  child: const Icon(Icons.tv, size: 40),
+              ),
+              // Overlay degradê vertical (segredo Netflix)
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: [0.0, 0.45, 0.75, 1.0],
+                    colors: [
+                      Color(0x0D000000), // 5% preto
+                      Color(0x4D000000), // 30% preto
+                      Color(0xB3000000), // 70% preto
+                      Color(0xE6000000), // 90% preto
+                    ],
+                  ),
                 ),
               ),
               // Badge TOP 10 - vermelho forte

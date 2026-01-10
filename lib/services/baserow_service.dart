@@ -4,18 +4,50 @@ import '../models/movie.dart';
 import '../models/tv_show.dart';
 
 class BaserowService {
-  static const String _baseUrl = 'https://api.baserow.io/api/database/rows/table';
-  static const String _token = 'QmAfq5k4dgeBb9WOwCE8qWxhmPSkookG';
+  // Servidor Baserow próprio
+  static const String _baseUrl = 'http://213.199.56.115/api/database/rows/table';
+  static const String _token = 'LR1atLkF7ZXGJyay195JMnwGWAlkjPIZ';
   
-  // IDs das tabelas
-  static const int _moviesTableId = 426110;
-  static const int _categoriesTableId = 426934;
-  static const int _episodesTableId = 443422;
+  // IDs das tabelas no servidor próprio
+  static const int _usersTableId = 4931;        // Tabela Usuarios
+  static const int _moviesTableId = 4932;       // Tabela Filmes & Series
+  static const int _categoriesTableId = 4933;   // Tabela Categorias
+  static const int _notificationsTableId = 4934; // Tabela Enviar Notificações
+  static const int _episodesTableId = 4935;     // Tabela Episodios
 
   static Map<String, String> get _headers => {
     'Authorization': 'Token $_token',
     'Content-Type': 'application/json',
   };
+
+  // Incrementar visualizações de um filme/série
+  Future<bool> incrementViews(int contentId) async {
+    try {
+      // Primeiro busca o valor atual de Views
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/$contentId/?user_field_names=true'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final currentViews = _parseInt(data['Views']);
+        
+        // Atualiza com o novo valor
+        final updateResponse = await http.patch(
+          Uri.parse('$_baseUrl/$_moviesTableId/$contentId/?user_field_names=true'),
+          headers: _headers,
+          body: json.encode({'Views': currentViews + 1}),
+        );
+
+        return updateResponse.statusCode == 200;
+      }
+      return false;
+    } catch (e) {
+      print('Erro incrementViews: $e');
+      return false;
+    }
+  }
 
   // Buscar filmes em alta (ordenados por IMDB)
   Future<List<Movie>> getTrendingMovies() async {
@@ -33,6 +65,35 @@ class BaserowService {
       return [];
     } catch (e) {
       print('Erro getTrendingMovies: $e');
+      return [];
+    }
+  }
+
+  // Buscar últimos conteúdos adicionados (filmes e séries)
+  Future<List<dynamic>> getLatestContent() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-id&size=20'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        
+        // Converte para Movie ou TVShow baseado no tipo
+        return results.map((item) {
+          final tipo = item['Tipo']?.toString() ?? '';
+          if (tipo == 'Series') {
+            return _convertToTVShow(item);
+          } else {
+            return _convertToMovie(item);
+          }
+        }).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Erro getLatestContent: $e');
       return [];
     }
   }
@@ -426,14 +487,28 @@ class BaserowService {
       if (baserowMovie.tmdbId != null && baserowMovie.tmdbId! > 0) {
         final tmdbData = await getTMDBDetails(baserowMovie.tmdbId!, 'movie');
         if (tmdbData != null) {
-          // Combina dados do Baserow com TMDB
+          // Helper para pegar valor do TMDB apenas se válido
+          String? getTmdbImage(String? tmdbPath, String? baserowPath) {
+            if (tmdbPath != null && tmdbPath.isNotEmpty) {
+              return tmdbPath;
+            }
+            return baserowPath;
+          }
+          
+          // Combina dados do Baserow com TMDB (Baserow como fallback)
           return Movie(
             id: baserowMovie.id,
-            title: tmdbData['title'] ?? baserowMovie.title, // Prioriza título do TMDB
-            overview: tmdbData['overview'] ?? baserowMovie.overview, // Prioriza sinopse do TMDB
-            posterPath: tmdbData['poster_path'] ?? baserowMovie.posterPath, // Prioriza poster do TMDB
-            backdropPath: tmdbData['backdrop_path'] ?? baserowMovie.backdropPath, // Prioriza backdrop do TMDB
-            releaseDate: tmdbData['release_date'] ?? baserowMovie.releaseDate,
+            title: (tmdbData['title'] as String?)?.isNotEmpty == true 
+                ? tmdbData['title'] 
+                : baserowMovie.title,
+            overview: (tmdbData['overview'] as String?)?.isNotEmpty == true 
+                ? tmdbData['overview'] 
+                : baserowMovie.overview,
+            posterPath: getTmdbImage(tmdbData['poster_path'], baserowMovie.posterPath),
+            backdropPath: getTmdbImage(tmdbData['backdrop_path'], baserowMovie.backdropPath),
+            releaseDate: (tmdbData['release_date'] as String?)?.isNotEmpty == true 
+                ? tmdbData['release_date'] 
+                : baserowMovie.releaseDate,
             voteAverage: (tmdbData['vote_average'] ?? baserowMovie.voteAverage).toDouble(),
             genreIds: baserowMovie.genreIds,
             streamUrl: baserowMovie.streamUrl,

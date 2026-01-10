@@ -588,6 +588,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                 title: _tvShow?.name ?? 'Série',
                 episodeNumber: episodeNumber,
                 seasonNumber: _selectedSeason,
+                contentId: _tvShow?.id,
               ),
             ),
           );
