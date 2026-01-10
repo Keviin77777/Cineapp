@@ -49,11 +49,11 @@ class BaserowService {
     }
   }
 
-  // Buscar filmes em alta (ordenados por IMDB)
+  // Buscar filmes em alta (ordenados por data de criação - mais recentes)
   Future<List<Movie>> getTrendingMovies() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Imdb&filter__Tipo__equal=Filmes&size=20'),
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Data&filter__Tipo__equal=Filmes&size=20'),
         headers: _headers,
       );
 
@@ -69,11 +69,11 @@ class BaserowService {
     }
   }
 
-  // Buscar últimos conteúdos adicionados (filmes e séries)
+  // Buscar últimos conteúdos adicionados (filmes e séries - mais recentes)
   Future<List<dynamic>> getLatestContent() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-id&size=20'),
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Data&size=20'),
         headers: _headers,
       );
 
@@ -98,11 +98,11 @@ class BaserowService {
     }
   }
 
-  // Buscar filmes populares (ordenados por Views)
+  // Buscar filmes populares (ordenados por data de criação - mais recentes)
   Future<List<Movie>> getPopularMovies() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Views&filter__Tipo__equal=Filmes&size=20'),
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Data&filter__Tipo__equal=Filmes&size=20'),
         headers: _headers,
       );
 
@@ -118,7 +118,7 @@ class BaserowService {
     }
   }
 
-  // Top 10 filmes por Views
+  // Top 10 filmes por Views (mais assistidos)
   Future<List<Movie>> getTop10Movies() async {
     try {
       final response = await http.get(
@@ -138,7 +138,7 @@ class BaserowService {
     }
   }
 
-  // Top 10 séries por Views
+  // Top 10 séries por Views (mais assistidas)
   Future<List<TVShow>> getTop10TVShows() async {
     try {
       final response = await http.get(
@@ -158,11 +158,11 @@ class BaserowService {
     }
   }
 
-  // Séries em alta (ordenadas por IMDB)
+  // Séries em alta (ordenadas por data de criação - mais recentes)
   Future<List<TVShow>> getTrendingTVShows() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Imdb&filter__Tipo__equal=Series&size=20'),
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Data&filter__Tipo__equal=Series&size=20'),
         headers: _headers,
       );
 
@@ -432,13 +432,31 @@ class BaserowService {
     try {
       const apiKey = '279e039eafd4ccc7c289a589c9b613e3';
       final url = type == 'movie' 
-          ? 'https://api.themoviedb.org/3/movie/$tmdbId?api_key=$apiKey&language=pt-BR&append_to_response=credits,similar'
-          : 'https://api.themoviedb.org/3/tv/$tmdbId?api_key=$apiKey&language=pt-BR&append_to_response=credits,similar';
+          ? 'https://api.themoviedb.org/3/movie/$tmdbId?api_key=$apiKey&language=pt-BR&append_to_response=credits,similar,images&include_image_language=pt,en,null'
+          : 'https://api.themoviedb.org/3/tv/$tmdbId?api_key=$apiKey&language=pt-BR&append_to_response=credits,similar,images&include_image_language=pt,en,null';
       
       final response = await http.get(Uri.parse(url));
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        
+        // Pegar o poster original (primeiro da lista de posters ou o padrão)
+        final images = data['images'] as Map<String, dynamic>?;
+        if (images != null) {
+          final posters = images['posters'] as List?;
+          final backdrops = images['backdrops'] as List?;
+          
+          // Usar o primeiro poster da lista (geralmente o original/padrão)
+          if (posters != null && posters.isNotEmpty) {
+            data['original_poster_path'] = posters[0]['file_path'];
+          }
+          
+          // Usar o primeiro backdrop da lista
+          if (backdrops != null && backdrops.isNotEmpty) {
+            data['original_backdrop_path'] = backdrops[0]['file_path'];
+          }
+        }
+        
         return data;
       }
       return null;

@@ -7,8 +7,13 @@ import '../utils/page_transitions.dart';
 
 class TVShowCard extends StatelessWidget {
   final TVShow tvShow;
+  final bool replaceRoute;
 
-  const TVShowCard({super.key, required this.tvShow});
+  const TVShowCard({
+    super.key,
+    required this.tvShow,
+    this.replaceRoute = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,15 +28,18 @@ class TVShowCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          FadeSlidePageRoute(
-            page: TVShowDetailScreen(
-              tvShowId: tvShow.id,
-              posterPath: tvShow.posterPath,
-            ),
+        final route = FadeSlidePageRoute(
+          page: TVShowDetailScreen(
+            tvShowId: tvShow.id,
+            posterPath: tvShow.posterPath,
           ),
         );
+        
+        if (replaceRoute) {
+          Navigator.pushReplacement(context, route);
+        } else {
+          Navigator.push(context, route);
+        }
       },
       child: Container(
         width: 118,

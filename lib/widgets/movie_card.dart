@@ -7,8 +7,13 @@ import '../utils/page_transitions.dart';
 
 class MovieCard extends StatelessWidget {
   final Movie movie;
+  final bool replaceRoute; // Se true, substitui a rota atual
 
-  const MovieCard({super.key, required this.movie});
+  const MovieCard({
+    super.key,
+    required this.movie,
+    this.replaceRoute = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,15 +28,18 @@ class MovieCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          FadeSlidePageRoute(
-            page: MovieDetailScreen(
-              movieId: movie.id,
-              posterPath: movie.posterPath,
-            ),
+        final route = FadeSlidePageRoute(
+          page: MovieDetailScreen(
+            movieId: movie.id,
+            posterPath: movie.posterPath,
           ),
         );
+        
+        if (replaceRoute) {
+          Navigator.pushReplacement(context, route);
+        } else {
+          Navigator.push(context, route);
+        }
       },
       child: Container(
         width: 125,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/baserow_service.dart';
+import '../services/watch_progress_service.dart';
 import '../models/movie.dart';
 import '../widgets/skeleton_loading.dart';
 import '../widgets/movie_card.dart';
@@ -23,9 +24,11 @@ class MovieDetailScreen extends StatefulWidget {
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   final BaserowService _baserowService = BaserowService();
+  final WatchProgressService _watchProgressService = WatchProgressService();
   Movie? _movie;
   Map<String, dynamic>? _tmdbData;
   List<Movie> _relatedMovies = [];
+  WatchProgress? _watchProgress;
   bool _isLoading = true;
   bool _isLoadingRelated = true;
   bool _isOverviewExpanded = false;
@@ -41,6 +44,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       ),
     );
     _loadMovieDetails();
+    _loadWatchProgress();
+  }
+
+  Future<void> _loadWatchProgress() async {
+    final progress = await _watchProgressService.getProgress(widget.movieId);
+    if (mounted) {
+      setState(() => _watchProgress = progress);
+    }
   }
 
   @override
@@ -155,8 +166,23 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildHeader() {
-    // Priorizar backdrop do TMDB para o header (melhor qualidade)
-    final imageUrl = _movie!.backdropPath ?? _movie!.posterPath;
+    // Priorizar poster/backdrop original do TMDB
+    String? imageUrl;
+    
+    // Primeiro tenta pegar o original do TMDB (da lista de images)
+    if (_tmdbData != null) {
+      final originalBackdrop = _tmdbData!['original_backdrop_path'] as String?;
+      final originalPoster = _tmdbData!['original_poster_path'] as String?;
+      final tmdbBackdrop = _tmdbData!['backdrop_path'] as String?;
+      final tmdbPoster = _tmdbData!['poster_path'] as String?;
+      
+      // Prioridade: backdrop original > backdrop padrão > poster original > poster padrão
+      imageUrl = originalBackdrop ?? tmdbBackdrop ?? originalPoster ?? tmdbPoster;
+    }
+    
+    // Se não tem do TMDB, usa do Baserow
+    imageUrl ??= _movie!.backdropPath ?? _movie!.posterPath;
+    
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
     final overview = _movie!.overview;
 
@@ -286,10 +312,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () {
+                          onPressed: () async {
                             final streamUrl = _movie!.streamUrl;
                             if (streamUrl != null && streamUrl.isNotEmpty) {
-                              Navigator.push(
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => VideoPlayerScreen(
@@ -297,9 +323,15 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                     title: _movie!.title,
                                     category: _movie!.categories?.split(',').first.trim(),
                                     contentId: _movie!.id,
+                                    posterPath: _movie!.posterPath,
+                                    backdropPath: _movie!.backdropPath,
+                                    type: 'movie',
+                                    startPositionMs: _watchProgress?.positionMs,
                                   ),
                                 ),
                               );
+                              // Recarrega o progresso ao voltar
+                              _loadWatchProgress();
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -310,7 +342,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                             }
                           },
                           icon: const Icon(Icons.play_arrow),
-                          label: const Text('Assistir'),
+                          label: Text(_watchProgress != null ? 'Continuar' : 'Assistir'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFE50914),
                             foregroundColor: Colors.white,
@@ -564,7 +596,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         scrollDirection: Axis.horizontal,
                         itemCount: _relatedMovies.take(10).length,
                         itemBuilder: (context, index) {
-                          return MovieCard(movie: _relatedMovies[index]);
+                          return MovieCard(
+                            movie: _relatedMovies[index],
+                            replaceRoute: true,
+                          );
                         },
                       ),
           ),

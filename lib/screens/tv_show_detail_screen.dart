@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/baserow_service.dart';
+import '../services/watch_progress_service.dart';
 import '../models/tv_show.dart';
 import '../widgets/skeleton_loading.dart';
 import 'video_player_screen.dart';
@@ -22,6 +23,7 @@ class TVShowDetailScreen extends StatefulWidget {
 
 class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
   final BaserowService _baserowService = BaserowService();
+  final WatchProgressService _watchProgressService = WatchProgressService();
   TVShow? _tvShow;
   Map<String, dynamic>? _tmdbData;
   List<TVShow> _relatedTVShows = [];
@@ -177,7 +179,23 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
   }
 
   Widget _buildHeader() {
-    final imageUrl = _tvShow!.backdropPath ?? _tvShow!.posterPath;
+    // Priorizar poster/backdrop original do TMDB
+    String? imageUrl;
+    
+    // Primeiro tenta pegar o original do TMDB (da lista de images)
+    if (_tmdbData != null) {
+      final originalBackdrop = _tmdbData!['original_backdrop_path'] as String?;
+      final originalPoster = _tmdbData!['original_poster_path'] as String?;
+      final tmdbBackdrop = _tmdbData!['backdrop_path'] as String?;
+      final tmdbPoster = _tmdbData!['poster_path'] as String?;
+      
+      // Prioridade: backdrop original > backdrop padrão > poster original > poster padrão
+      imageUrl = originalBackdrop ?? tmdbBackdrop ?? originalPoster ?? tmdbPoster;
+    }
+    
+    // Se não tem do TMDB, usa do Baserow
+    imageUrl ??= _tvShow!.backdropPath ?? _tvShow!.posterPath;
+    
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
     final overview = _tvShow!.overview;
 
@@ -578,9 +596,9 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
     final link = episode['link'] as String? ?? '';
     
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         if (link.isNotEmpty) {
-          Navigator.push(
+          await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (_) => VideoPlayerScreen(
@@ -589,6 +607,9 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                 episodeNumber: episodeNumber,
                 seasonNumber: _selectedSeason,
                 contentId: _tvShow?.id,
+                posterPath: _tvShow?.posterPath,
+                backdropPath: stillPath ?? _tvShow?.backdropPath,
+                type: 'tv',
               ),
             ),
           );

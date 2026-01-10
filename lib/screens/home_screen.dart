@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/baserow_service.dart';
+import '../services/watch_progress_service.dart';
 import '../models/movie.dart';
 import '../models/tv_show.dart';
 import '../models/profile.dart';
@@ -14,6 +15,7 @@ import '../widgets/home_skeleton_loading.dart';
 import '../widgets/tv_show_card.dart';
 import '../widgets/movie_card.dart';
 import '../widgets/featured_card.dart';
+import '../widgets/continue_watching_card.dart';
 import '../utils/page_transitions.dart';
 import 'movie_detail_screen.dart';
 import 'tv_show_detail_screen.dart';
@@ -25,8 +27,9 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final BaserowService _baserowService = BaserowService();
+  final WatchProgressService _watchProgressService = WatchProgressService();
   int _selectedIndex = 0;
   int _selectedTab = 0;
   Profile? _currentProfile;
@@ -40,25 +43,52 @@ class _HomeScreenState extends State<HomeScreen> {
   List<TVShow> _top10TVShows = [];
   List<TVShow> _trendingTVShows = [];
   List<dynamic> _latestContent = [];
+  List<WatchProgress> _continueWatching = [];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pageController = PageController(initialPage: _selectedTab);
     _loadCurrentProfile();
     _loadAllData();
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Recarrega quando volta para esta tela
+    final route = ModalRoute.of(context);
+    if (route != null && route.isCurrent) {
+      _loadAllData();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Recarrega quando o app volta ao foreground
+      _loadAllData();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController?.dispose();
     super.dispose();
   }
 
   Future<void> _loadAllData() async {
-    setState(() => _isLoading = true);
+    // Só mostra loading se não tiver dados ainda
+    if (_top10Movies.isEmpty && _top10TVShows.isEmpty) {
+      setState(() => _isLoading = true);
+    }
 
     try {
+      // Carregar continue watching primeiro (local, rápido)
+      final continueWatching = await _watchProgressService.getAll();
+      
       // Carregar todos os dados em paralelo
       final results = await Future.wait([
         _baserowService.getTrendingMovies(),
@@ -71,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (mounted) {
         setState(() {
+          _continueWatching = continueWatching;
           _trendingMovies = results[0] as List<Movie>;
           _popularMovies = results[1] as List<Movie>;
           _top10Movies = results[2] as List<Movie>;
@@ -119,8 +150,10 @@ class _HomeScreenState extends State<HomeScreen> {
       body: _selectedIndex == 0
           ? _buildHomeContent()
           : _selectedIndex == 1
-              ? _buildFavoritesTab()
-              : _buildProfileTab(),
+              ? _buildLibraryTab()
+              : _selectedIndex == 2
+                  ? _buildFavoritesTab()
+                  : _buildProfileTab(),
       bottomNavigationBar: _buildBottomNav(),
     );
   }
@@ -139,13 +172,14 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(Icons.home, 'Home', 0),
-              _buildNavItem(Icons.favorite_border, 'Favoritos', 1),
-              _buildNavItem(Icons.person_outline, 'Perfil', 2),
+              _buildNavItem(Icons.dashboard_outlined, 'Biblioteca', 1),
+              _buildNavItem(Icons.favorite_border, 'Favoritos', 2),
+              _buildNavItem(Icons.person_outline, 'Perfil', 3),
             ],
           ),
         ),
@@ -349,9 +383,11 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_trendingMovies.isNotEmpty)
               BannerCarousel(movies: _trendingMovies.take(5).toList()),
             const SizedBox(height: 20),
-            _buildCategoriesSection(),
-            const SizedBox(height: 30),
-            // Últimos Adicionados
+            // Continue Assistindo (acima de Novidades)
+            if (_continueWatching.isNotEmpty) ...[
+              _buildContinueWatchingSection(),
+              const SizedBox(height: 30),
+            ],
             // Novidades Recém Adicionadas
             _buildLatestSection(),
             const SizedBox(height: 30),
@@ -382,50 +418,53 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCategoriesSection() {
-    final categories = [
-      {'name': 'Ação', 'icon': Icons.local_fire_department},
-      {'name': 'Comédia', 'icon': Icons.theater_comedy},
-      {'name': 'Terror', 'icon': Icons.sentiment_very_dissatisfied},
-      {'name': 'Romance', 'icon': Icons.favorite},
-      {'name': 'Fantasia', 'icon': Icons.auto_awesome},
-      {'name': 'Ficção', 'icon': Icons.rocket_launch},
-    ];
-
-    return SizedBox(
-      height: 55,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: categories.length,
-        itemBuilder: (context, index) {
-          final category = categories[index];
-          return Container(
-            margin: const EdgeInsets.only(right: 5),
-            child: ElevatedButton.icon(
-              onPressed: () {},
-              icon: Icon(category['icon'] as IconData, size: 20),
-              label: Text(
-                category['name'] as String,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A1A1A).withOpacity(0.8),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: Colors.grey.withOpacity(0.2),
-                    width: 1,
+  Widget _buildContinueWatchingSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 20, right: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.play_circle_outline, color: Color(0xFFE50914), size: 24),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Continue Assistindo',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                elevation: 0,
+                ],
               ),
-            ),
-          );
-        },
-      ),
+              Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 20),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 125,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: _continueWatching.length,
+            itemBuilder: (context, index) {
+              final progress = _continueWatching[index];
+              return ContinueWatchingCard(
+                progress: progress,
+                onRemove: () async {
+                  await _watchProgressService.removeProgress(
+                    progress.contentId,
+                    seasonNumber: progress.seasonNumber,
+                    episodeNumber: progress.episodeNumber,
+                  );
+                  _loadAllData();
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -632,20 +671,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFavoritesTab() {
-    return Container(
-      color: Colors.black,
-      child: const Center(child: Text('Favoritos')),
-    );
-  }
-
-  Widget _buildProfileTab() {
-    return Container(
-      color: Colors.black,
-      child: const Center(child: Text('Perfil')),
-    );
-  }
-
   Widget _buildLatestSection() {
     // Usa os filmes populares invertidos como "novidades"
     final latestMovies = _popularMovies.reversed.take(15).toList();
@@ -683,6 +708,159 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildLibraryTab() {
+    return Container(
+      color: Colors.black,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'Biblioteca',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.dashboard_outlined, size: 80, color: Colors.grey[600]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Sua biblioteca está vazia',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Baixe filmes e séries para assistir offline',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFavoritesTab() {
+    return Container(
+      color: Colors.black,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'Favoritos',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.favorite_border, size: 80, color: Colors.grey[600]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Nenhum favorito ainda',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Adicione filmes e séries aos favoritos',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileTab() {
+    return Container(
+      color: Colors.black,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'Perfil',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (_currentProfile != null) ...[
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(int.parse(_currentProfile!.backgroundColor)),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _currentProfile!.avatarUrl,
+                            style: const TextStyle(fontSize: 40),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _currentProfile!.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ] else ...[
+                      Icon(Icons.person_outline, size: 80, color: Colors.grey[600]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Perfil não configurado',
+                        style: TextStyle(color: Colors.grey[400], fontSize: 16),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

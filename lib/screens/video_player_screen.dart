@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'dart:async';
 import '../services/baserow_service.dart';
+import '../services/watch_progress_service.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
@@ -10,7 +11,11 @@ class VideoPlayerScreen extends StatefulWidget {
   final int? episodeNumber;
   final int? seasonNumber;
   final String? category;
-  final int? contentId; // ID do filme/série para contar views
+  final int? contentId;
+  final String? posterPath;
+  final String? backdropPath;
+  final String type; // 'movie' ou 'tv'
+  final int? startPositionMs; // Posição inicial para continuar
 
   const VideoPlayerScreen({
     super.key,
@@ -20,6 +25,10 @@ class VideoPlayerScreen extends StatefulWidget {
     this.seasonNumber,
     this.category,
     this.contentId,
+    this.posterPath,
+    this.backdropPath,
+    this.type = 'movie',
+    this.startPositionMs,
   });
 
   @override
@@ -30,6 +39,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     with TickerProviderStateMixin {
   VideoPlayerController? _controller;
   final BaserowService _baserowService = BaserowService();
+  final WatchProgressService _watchProgressService = WatchProgressService();
   bool _isLoading = true;
   bool _showControls = true;
   bool _viewCounted = false;
@@ -41,6 +51,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
   String? _errorMessage;
   Timer? _hideControlsTimer;
   Timer? _hideCategoryTimer;
+  Timer? _saveProgressTimer;
   late AnimationController _loadingController;
   late AnimationController _categoryAnimController;
   late Animation<Offset> _categorySlideAnimation;
@@ -103,6 +114,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
 
       _controller!.addListener(_videoListener);
       await _controller!.initialize();
+      
+      // Se tem posição inicial, pula para ela
+      if (widget.startPositionMs != null && widget.startPositionMs! > 0) {
+        await _controller!.seekTo(Duration(milliseconds: widget.startPositionMs!));
+      }
+      
       await _controller!.play();
 
       if (mounted) {
@@ -113,6 +130,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
         _startHideControlsTimer();
         _showCategoryBannerAnimation();
         _countView();
+        _startSaveProgressTimer();
       }
     } catch (e) {
       if (mounted) {
@@ -159,6 +177,40 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
         });
       }
     });
+  }
+
+  // Inicia timer para salvar progresso a cada 10 segundos
+  void _startSaveProgressTimer() {
+    _saveProgressTimer?.cancel();
+    _saveProgressTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _saveCurrentProgress();
+    });
+  }
+
+  // Salva o progresso atual
+  Future<void> _saveCurrentProgress() async {
+    if (_controller == null || widget.contentId == null) return;
+    if (!_controller!.value.isInitialized) return;
+    
+    final position = _controller!.value.position;
+    final duration = _controller!.value.duration;
+    
+    if (duration.inMilliseconds <= 0) return;
+    
+    final progress = WatchProgress(
+      contentId: widget.contentId!,
+      title: widget.title,
+      posterPath: widget.posterPath,
+      backdropPath: widget.backdropPath,
+      positionMs: position.inMilliseconds,
+      durationMs: duration.inMilliseconds,
+      type: widget.type,
+      seasonNumber: widget.seasonNumber,
+      episodeNumber: widget.episodeNumber,
+      lastWatched: DateTime.now(),
+    );
+    
+    await _watchProgressService.saveProgress(progress);
   }
 
   // Contar visualização no Baserow
@@ -219,6 +271,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
   void dispose() {
     _hideControlsTimer?.cancel();
     _hideCategoryTimer?.cancel();
+    _saveProgressTimer?.cancel();
+    // Salva progresso ao sair
+    _saveCurrentProgress();
     _loadingController.dispose();
     _categoryAnimController.dispose();
     _controller?.removeListener(_videoListener);
@@ -228,38 +283,44 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     super.dispose();
   }
 
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: _toggleControls,
-        child: Stack(
-          children: [
-            if (_controller != null && _controller!.value.isInitialized)
-              Center(
-                child: SizedBox.expand(
-                  child: FittedBox(
-                    fit: _fitModes[_fitModeIndex]['fit'] as BoxFit,
-                    child: SizedBox(
-                      width: _controller!.value.size.width,
-                      height: _controller!.value.size.height,
-                      child: VideoPlayer(_controller!),
+    return WillPopScope(
+      onWillPop: () async {
+        await _saveCurrentProgress(); // Salva antes de sair
+        Navigator.pop(context, _viewCounted);
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: GestureDetector(
+          onTap: _toggleControls,
+          child: Stack(
+            children: [
+              if (_controller != null && _controller!.value.isInitialized)
+                Center(
+                  child: SizedBox.expand(
+                    child: FittedBox(
+                      fit: _fitModes[_fitModeIndex]['fit'] as BoxFit,
+                      child: SizedBox(
+                        width: _controller!.value.size.width,
+                        height: _controller!.value.size.height,
+                        child: VideoPlayer(_controller!),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            if (_isLoading) _buildLoading(),
-            if (_isBuffering && !_isLoading) _buildBufferingIndicator(),
-            if (_errorMessage != null) _buildError(),
-            if (_showCategoryBanner && !_isLoading && _errorMessage == null) _buildCategoryBanner(),
-            if (_showControls && !_isLoading && _errorMessage == null) ...[
-              // Overlay escuro quando controles estão visíveis
-              Container(color: Colors.black.withOpacity(0.4)),
-              _buildControls(),
+              if (_isLoading) _buildLoading(),
+              if (_isBuffering && !_isLoading) _buildBufferingIndicator(),
+              if (_errorMessage != null) _buildError(),
+              if (_showCategoryBanner && !_isLoading && _errorMessage == null) _buildCategoryBanner(),
+              if (_showControls && !_isLoading && _errorMessage == null) ...[
+                // Overlay escuro quando controles estão visíveis
+                Container(color: Colors.black.withOpacity(0.4)),
+                _buildControls(),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -417,7 +478,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.arrow_back, color: Colors.white, size: 26)),
+          IconButton(
+            onPressed: () => Navigator.pop(context, _viewCounted), // Retorna se contou view
+            icon: const Icon(Icons.arrow_back, color: Colors.white, size: 26),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
