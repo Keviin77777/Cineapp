@@ -51,11 +51,19 @@ class _NextEpisodeOverlayState extends State<NextEpisodeOverlay>
 
   void _startCountdown() {
     _autoPlayTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
       if (_countdown > 1) {
         setState(() => _countdown--);
       } else {
         timer.cancel();
-        widget.onPlay();
+        // Garantir que o callback seja chamado mesmo se o widget estiver sendo desmontado
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          widget.onPlay();
+        });
       }
     });
   }

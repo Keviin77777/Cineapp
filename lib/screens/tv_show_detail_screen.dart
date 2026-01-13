@@ -7,37 +7,95 @@ import '../models/tv_show.dart';
 import '../widgets/skeleton_loading.dart';
 import 'video_player_screen.dart';
 
+// RouteObserver global para detectar navegação
+final RouteObserver<ModalRoute<void>> tvShowRouteObserver =
+    RouteObserver<ModalRoute<void>>();
+
 class TVShowDetailScreen extends StatefulWidget {
   final int tvShowId;
   final String? posterPath;
+  final int? scrollToSeason;
+  final int? scrollToEpisode;
 
   const TVShowDetailScreen({
     super.key,
     required this.tvShowId,
     this.posterPath,
+    this.scrollToSeason,
+    this.scrollToEpisode,
   });
 
   @override
   State<TVShowDetailScreen> createState() => _TVShowDetailScreenState();
 }
 
-class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
+class _TVShowDetailScreenState extends State<TVShowDetailScreen>
+    with RouteAware {
   final BaserowService _baserowService = BaserowService();
   final WatchProgressService _watchProgressService = WatchProgressService();
+  final ScrollController _episodesScrollController = ScrollController();
   TVShow? _tvShow;
   Map<String, dynamic>? _tmdbData;
   List<TVShow> _relatedTVShows = [];
   Map<int, List<Map<String, dynamic>>> _episodesBySeason = {};
+  WatchProgress? _lastWatchProgress;
+  Map<String, WatchProgress> _episodeProgressMap = {}; // key: "season_episode"
   bool _isLoading = true;
   bool _isLoadingEpisodes = true;
   bool _isLoadingRelated = true;
   bool _isOverviewExpanded = false;
   int _selectedSeason = 1;
+  bool _hasScrolledToEpisode = false;
 
   @override
   void initState() {
     super.initState();
     _loadTVShowDetails();
+    _loadWatchProgress();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Registrar no RouteObserver
+    tvShowRouteObserver.subscribe(this, ModalRoute.of(context)!);
+  }
+
+  @override
+  void dispose() {
+    tvShowRouteObserver.unsubscribe(this);
+    _episodesScrollController.dispose();
+    super.dispose();
+  }
+
+  // Chamado quando a tela volta a ser visível (pop de outra tela)
+  @override
+  void didPopNext() {
+    // Recarrega o progresso quando volta do player
+    _loadWatchProgress();
+  }
+
+  Future<void> _loadWatchProgress() async {
+    final progress =
+        await _watchProgressService.getLastTVShowProgress(widget.tvShowId);
+    if (mounted) {
+      setState(() => _lastWatchProgress = progress);
+    }
+
+    // Carregar progresso de todos os episódios
+    final allProgress = await _watchProgressService.getAll();
+    final Map<String, WatchProgress> progressMap = {};
+    for (final p in allProgress) {
+      if (p.contentId == widget.tvShowId &&
+          p.type == 'tv' &&
+          p.seasonNumber != null &&
+          p.episodeNumber != null) {
+        progressMap['${p.seasonNumber}_${p.episodeNumber}'] = p;
+      }
+    }
+    if (mounted) {
+      setState(() => _episodeProgressMap = progressMap);
+    }
   }
 
   Future<void> _loadTVShowDetails() async {
@@ -92,9 +150,18 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
       
       print('Temporadas encontradas: ${episodesBySeason.keys.toList()}');
       
-      // Definir temporada inicial
+      // Definir temporada inicial (prioriza scroll ou último progresso)
       final seasons = episodesBySeason.keys.toList()..sort();
-      final initialSeason = seasons.isNotEmpty ? seasons.first : 1;
+      int initialSeason = seasons.isNotEmpty ? seasons.first : 1;
+      
+      // Se tem parâmetro de scroll, usa ele
+      if (widget.scrollToSeason != null && seasons.contains(widget.scrollToSeason)) {
+        initialSeason = widget.scrollToSeason!;
+      }
+      // Se não, verifica se tem último progresso
+      else if (_lastWatchProgress?.seasonNumber != null && seasons.contains(_lastWatchProgress!.seasonNumber)) {
+        initialSeason = _lastWatchProgress!.seasonNumber!;
+      }
       
       if (mounted) {
         setState(() {
@@ -102,6 +169,9 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
           _selectedSeason = initialSeason;
           _isLoadingEpisodes = false;
         });
+        
+        // Scroll para o episódio específico após carregar
+        _scrollToEpisodeIfNeeded();
       }
       
       // Carregar dados do TMDB para complementar episódios em background
@@ -166,6 +236,37 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
       setState(() {
         _relatedTVShows = related;
         _isLoadingRelated = false;
+      });
+    }
+  }
+
+  void _scrollToEpisodeIfNeeded() {
+    if (_hasScrolledToEpisode) return;
+    
+    int? targetEpisode = widget.scrollToEpisode;
+    
+    // Se não tem parâmetro de scroll, usa o último progresso
+    if (targetEpisode == null && _lastWatchProgress?.episodeNumber != null) {
+      targetEpisode = _lastWatchProgress!.episodeNumber;
+    }
+    
+    if (targetEpisode == null) return;
+    
+    final currentEpisodes = _episodesBySeason[_selectedSeason] ?? [];
+    final episodeIndex = currentEpisodes.indexWhere((ep) => ep['episodio'] == targetEpisode);
+    
+    if (episodeIndex > 0) {
+      _hasScrolledToEpisode = true;
+      // Aguarda o frame ser renderizado
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_episodesScrollController.hasClients) {
+          final scrollPosition = episodeIndex * 292.0; // 280 width + 12 margin
+          _episodesScrollController.animateTo(
+            scrollPosition,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOutCubic,
+          );
+        }
       });
     }
   }
@@ -363,9 +464,9 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () {},
+                          onPressed: () => _playEpisode(),
                           icon: const Icon(Icons.play_arrow),
-                          label: const Text('Assistir'),
+                          label: Text(_getPlayButtonText()),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFE50914),
                             foregroundColor: Colors.white,
@@ -425,6 +526,67 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
       return 'https://image.tmdb.org/t/p/original$imagePath';
     }
     return imagePath;
+  }
+
+  String _getPlayButtonText() {
+    if (_lastWatchProgress != null) {
+      final s = _lastWatchProgress!.seasonNumber ?? 1;
+      final e = _lastWatchProgress!.episodeNumber ?? 1;
+      return 'Continuar T${s}E$e';
+    }
+    return 'Assistir T1E1';
+  }
+
+  Future<void> _playEpisode() async {
+    int seasonToPlay = 1;
+    int episodeToPlay = 1;
+    int? startPositionMs;
+    
+    // Se tem progresso, continua de onde parou
+    if (_lastWatchProgress != null) {
+      seasonToPlay = _lastWatchProgress!.seasonNumber ?? 1;
+      episodeToPlay = _lastWatchProgress!.episodeNumber ?? 1;
+      startPositionMs = _lastWatchProgress!.positionMs;
+    }
+    
+    // Buscar o link do episódio
+    final episodes = _episodesBySeason[seasonToPlay] ?? [];
+    final episode = episodes.firstWhere(
+      (ep) => ep['episodio'] == episodeToPlay,
+      orElse: () => episodes.isNotEmpty ? episodes.first : <String, dynamic>{},
+    );
+    
+    final link = episode['link'] as String? ?? '';
+    final stillPath = episode['still_path'] as String?;
+    
+    if (link.isNotEmpty) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VideoPlayerScreen(
+            videoUrl: link,
+            title: _tvShow?.name ?? 'Série',
+            episodeNumber: episodeToPlay,
+            seasonNumber: seasonToPlay,
+            contentId: _tvShow?.id,
+            tmdbId: _tvShow?.tmdbId,
+            posterPath: _tvShow?.posterPath,
+            backdropPath: stillPath ?? _tvShow?.backdropPath,
+            type: 'tv',
+            startPositionMs: startPositionMs,
+          ),
+        ),
+      );
+      // Recarrega o progresso ao voltar
+      _loadWatchProgress();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Link do episódio não disponível'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildEpisodesSection() {
@@ -533,6 +695,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                       ),
                     )
                   : ListView.builder(
+                      controller: _episodesScrollController,
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       itemCount: currentEpisodes.length,
@@ -593,6 +756,10 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                 onTap: () {
                   setState(() => _selectedSeason = season);
                   Navigator.pop(context);
+                  // Reseta scroll ao mudar de temporada
+                  if (_episodesScrollController.hasClients) {
+                    _episodesScrollController.jumpTo(0);
+                  }
                 },
               )),
               const SizedBox(height: 20),
@@ -608,6 +775,11 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
     final overview = episode['overview'] as String? ?? '';
     final name = episode['name'] as String? ?? 'Episódio $episodeNumber';
     final link = episode['link'] as String? ?? '';
+    
+    // Buscar progresso deste episódio
+    final progressKey = '${_selectedSeason}_$episodeNumber';
+    final episodeProgress = _episodeProgressMap[progressKey];
+    final hasProgress = episodeProgress != null;
     
     // Usar still_path do TMDB, ou backdrop da série como fallback
     final imageUrl = stillPath != null && stillPath.isNotEmpty
@@ -632,9 +804,12 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                 posterPath: _tvShow?.posterPath,
                 backdropPath: stillPath ?? _tvShow?.backdropPath,
                 type: 'tv',
+                startPositionMs: episodeProgress?.positionMs,
               ),
             ),
           );
+          // Recarrega o progresso ao voltar
+          _loadWatchProgress();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -698,8 +873,9 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                   ),
                   // Número do episódio no canto
                   Positioned(
-                    bottom: 8,
+                    bottom: hasProgress ? 12 : 8,
                     left: 8,
+                    right: 8,
                     child: Text(
                       '$episodeNumber. $name',
                       style: const TextStyle(
@@ -712,6 +888,19 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  // Barra de progresso se tiver
+                  if (hasProgress)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: LinearProgressIndicator(
+                        value: episodeProgress.progress,
+                        backgroundColor: Colors.grey[800],
+                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE50914)),
+                        minHeight: 4,
+                      ),
+                    ),
                 ],
               ),
             ),

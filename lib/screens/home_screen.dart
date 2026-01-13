@@ -94,7 +94,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     try {
       // Carregar continue watching primeiro (local, rápido)
-      final continueWatching = await _watchProgressService.getAll();
+      // Usa getForHomeDisplay para mostrar apenas 1 card por série
+      final continueWatching = await _watchProgressService.getForHomeDisplay();
       
       // Carregar todos os dados em paralelo
       final results = await Future.wait([

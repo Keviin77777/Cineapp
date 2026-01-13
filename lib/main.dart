@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/profile_selection_screen.dart';
+import 'screens/tv_show_detail_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +28,7 @@ class CinemaxApp extends StatelessWidget {
         ),
         fontFamily: 'Poppins',
       ),
+      navigatorObservers: [tvShowRouteObserver],
       home: const SplashDecider(),
     );
   }

@@ -140,4 +140,47 @@ class WatchProgressService {
     
     await prefs.setString(_key, jsonEncode(list.map((p) => p.toJson()).toList()));
   }
+
+  // Buscar último progresso de uma série (qualquer episódio)
+  Future<WatchProgress?> getLastTVShowProgress(int contentId) async {
+    final list = await getAll();
+    try {
+      // Retorna o mais recente (já está ordenado por lastWatched)
+      return list.firstWhere((p) => p.contentId == contentId && p.type == 'tv');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Buscar progresso de um episódio específico
+  Future<WatchProgress?> getEpisodeProgress(int contentId, int seasonNumber, int episodeNumber) async {
+    final list = await getAll();
+    try {
+      return list.firstWhere((p) => 
+        p.contentId == contentId && 
+        p.seasonNumber == seasonNumber && 
+        p.episodeNumber == episodeNumber
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Buscar lista para exibição na Home (apenas 1 card por série, mostrando o último episódio)
+  Future<List<WatchProgress>> getForHomeDisplay() async {
+    final list = await getAll();
+    final Map<int, WatchProgress> uniqueByContent = {};
+    
+    for (final p in list) {
+      // Se ainda não tem esse contentId, ou se é mais recente, adiciona
+      if (!uniqueByContent.containsKey(p.contentId)) {
+        uniqueByContent[p.contentId] = p;
+      }
+    }
+    
+    // Retorna ordenado por lastWatched (mais recente primeiro)
+    final result = uniqueByContent.values.toList();
+    result.sort((a, b) => b.lastWatched.compareTo(a.lastWatched));
+    return result;
+  }
 }

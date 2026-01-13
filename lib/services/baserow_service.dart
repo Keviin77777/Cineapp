@@ -44,7 +44,6 @@ class BaserowService {
       }
       return false;
     } catch (e) {
-      print('Erro incrementViews: $e');
       return false;
     }
   }
@@ -64,7 +63,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getTrendingMovies: $e');
       return [];
     }
   }
@@ -93,7 +91,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getLatestContent: $e');
       return [];
     }
   }
@@ -113,7 +110,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getPickedForYou: $e');
       return [];
     }
   }
@@ -133,7 +129,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getPopularMovies: $e');
       return [];
     }
   }
@@ -153,7 +148,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getTop10Movies: $e');
       return [];
     }
   }
@@ -173,7 +167,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getTop10TVShows: $e');
       return [];
     }
   }
@@ -193,7 +186,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getTrendingTVShows: $e');
       return [];
     }
   }
@@ -212,7 +204,6 @@ class BaserowService {
       }
       return null;
     } catch (e) {
-      print('Erro getMovieDetails: $e');
       return null;
     }
   }
@@ -231,7 +222,6 @@ class BaserowService {
       }
       return null;
     } catch (e) {
-      print('Erro getTVShowDetails: $e');
       return null;
     }
   }
@@ -244,11 +234,8 @@ class BaserowService {
       final seriesName = seriesData['name'] ?? '';
       
       if (seriesName.isEmpty) {
-        print('Nome da série não encontrado para ID: $seriesId');
         return [];
       }
-      
-      print('Buscando episódios para série: $seriesName (ID: $seriesId)');
       
       // Tentar buscar com filtro primeiro (mais eficiente)
       var url = '$_baseUrl/$_episodesTableId/?user_field_names=true&size=200&filter__Nome__contains=$seriesName';
@@ -259,11 +246,8 @@ class BaserowService {
         var data = json.decode(response.body);
         var results = data['results'] as List? ?? [];
         
-        print('Episódios encontrados com filtro API: ${results.length}');
-        
         // Se não encontrou com filtro, busca todos e filtra localmente
         if (results.isEmpty) {
-          print('Tentando buscar todos os episódios sem filtro...');
           response = await http.get(
             Uri.parse('$_baseUrl/$_episodesTableId/?user_field_names=true&size=500'),
             headers: _headers,
@@ -273,12 +257,8 @@ class BaserowService {
             data = json.decode(response.body);
             results = data['results'] as List? ?? [];
             
-            print('Total de episódios na tabela: ${results.length}');
-            
             // Normalizar nome da série para comparação
             final seriesNameNormalized = _normalizeName(seriesName);
-            
-            print('Nome normalizado da série: "$seriesNameNormalized"');
             
             // Filtrar episódios que pertencem à série
             results = results.where((item) {
@@ -290,13 +270,10 @@ class BaserowService {
                      episodeNameNormalized.contains(seriesNameNormalized) ||
                      episodeNameNormalized.startsWith(seriesNameNormalized);
             }).toList();
-            
-            print('Episódios filtrados localmente: ${results.length}');
           }
         }
         
         if (results.isEmpty) {
-          print('Nenhum episódio encontrado para "$seriesName"');
           return [];
         }
         
@@ -310,10 +287,8 @@ class BaserowService {
         }).toList();
       }
       
-      print('Erro na resposta da API: ${response.statusCode}');
       return [];
     } catch (e) {
-      print('Erro getEpisodes: $e');
       return [];
     }
   }
@@ -334,11 +309,8 @@ class BaserowService {
         (a['episodio'] as int).compareTo(b['episodio'] as int)
       );
       
-      print('Episódios da temporada $seasonNumber: ${seasonEpisodes.length}');
-      
       return seasonEpisodes;
     } catch (e) {
-      print('Erro getEpisodesBySeason: $e');
       return [];
     }
   }
@@ -420,7 +392,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getCategories: $e');
       return [];
     }
   }
@@ -444,7 +415,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getHomeCategories: $e');
       return [];
     }
   }
@@ -464,7 +434,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getMoviesByGenre: $e');
       return [];
     }
   }
@@ -489,7 +458,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getMoviesThisWeek: $e');
       return [];
     }
   }
@@ -664,7 +632,6 @@ class BaserowService {
       }
       return null;
     } catch (e) {
-      print('Erro ao buscar dados TMDB: $e');
       return null;
     }
   }
@@ -692,7 +659,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro ao buscar episódios TMDB: $e');
       return [];
     }
   }
@@ -743,7 +709,6 @@ class BaserowService {
 
       return baserowMovie;
     } catch (e) {
-      print('Erro getEnhancedMovieDetails: $e');
       return null;
     }
   }
@@ -779,7 +744,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getTMDBSimilarMovies: $e');
       return [];
     }
   }
@@ -840,7 +804,6 @@ class BaserowService {
       }
       return [];
     } catch (e) {
-      print('Erro getRelatedTVShows: $e');
       return [];
     }
   }

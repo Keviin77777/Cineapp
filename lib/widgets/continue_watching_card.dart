@@ -88,6 +88,8 @@ class ContinueWatchingCard extends StatelessWidget {
               page: TVShowDetailScreen(
                 tvShowId: progress.contentId,
                 posterPath: progress.posterPath,
+                scrollToSeason: progress.seasonNumber,
+                scrollToEpisode: progress.episodeNumber,
               ),
             ),
           );

@@ -303,7 +303,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       return;
     }
     
-    final nextEpNumber = _currentEpisodeNumber + 1;
+    // Pegar o número do episódio diretamente dos dados carregados
+    final nextEpNumber = _nextEpisodeData!['episodio'] as int? ?? (_currentEpisodeNumber + 1);
     final videoUrl = _nextEpisodeData!['link'] as String?;
     final stillPath = _nextEpisodeData!['still_path'] as String?;
     
@@ -312,8 +313,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     
     if (videoUrl == null || videoUrl.isEmpty) {
       print('❌ URL do próximo episódio está vazia');
+      // Fechar overlay e pausar vídeo se não tiver URL válida
+      setState(() {
+        _showNextEpisodeOverlay = false;
+        _nextEpisodeData = null;
+      });
       return;
     }
+    
+    // Fechar overlay antes de trocar
+    setState(() {
+      _showNextEpisodeOverlay = false;
+    });
     
     _switchToEpisode(_currentSeasonNumber, nextEpNumber, videoUrl, stillPath);
   }
@@ -612,9 +623,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
                       ],
                     ),
                   ),
-                  if (widget.seasonNumber != null && widget.episodeNumber != null)
+                  if (_currentSeasonNumber > 0 && _currentEpisodeNumber > 0)
                     Text(
-                      'T${widget.seasonNumber} • E${widget.episodeNumber}',
+                      'T$_currentSeasonNumber • E$_currentEpisodeNumber',
                       style: TextStyle(
                         color: Colors.grey[400],
                         fontSize: 10,
@@ -670,8 +681,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
             child: Column(
               children: [
                 Text(widget.title.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
-                if (widget.seasonNumber != null && widget.episodeNumber != null)
-                  Text('T${widget.seasonNumber}E${widget.episodeNumber}', style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+                if (_currentSeasonNumber > 0 && _currentEpisodeNumber > 0)
+                  Text('T${_currentSeasonNumber}E$_currentEpisodeNumber', style: TextStyle(color: Colors.grey[400], fontSize: 12)),
               ],
             ),
           ),
@@ -861,10 +872,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     // Salva progresso do episódio atual antes de trocar
     await _saveCurrentProgress();
     
-    // Para o vídeo atual
-    await _controller?.pause();
+    // Para o vídeo atual e remove listener ANTES de qualquer setState
     _controller?.removeListener(_videoListener);
+    await _controller?.pause();
     await _controller?.dispose();
+    _controller = null;
     
     // Resetar flags e atualizar episódio atual
     setState(() {
