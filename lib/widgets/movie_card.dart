@@ -69,11 +69,11 @@ class MovieCard extends StatelessWidget {
                 height: 166,
                 width: 125,
                 fit: BoxFit.cover,
+                memCacheWidth: 250, // Cache otimizado
+                fadeInDuration: const Duration(milliseconds: 200),
+                fadeOutDuration: const Duration(milliseconds: 200),
                 placeholder: (context, url) => Container(
-                  color: Colors.grey[800],
-                  child: const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+                  color: Colors.grey[850],
                 ),
                 errorWidget: (context, url, error) => Container(
                   color: Colors.grey[800],

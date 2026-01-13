@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../services/baserow_service.dart';
 import '../services/watch_progress_service.dart';
 import '../models/movie.dart';
 import '../models/tv_show.dart';
 import '../models/profile.dart';
 import '../widgets/banner_carousel.dart';
+import '../widgets/banner_carousel_tv.dart';
 import '../widgets/trending_carousel.dart';
 import '../widgets/top10_card.dart';
 import '../widgets/top10_tv_card.dart';
@@ -51,6 +53,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Movie> _thisWeekMovies = [];
   Map<String, List<Movie>> _genreMovies = {};
 
+  // Séries por categoria
+  List<TVShow> _novelas = [];
+  List<TVShow> _seriesDisney = [];
+  List<TVShow> _seriesNetflix = [];
+  List<TVShow> _seriesGloboPlay = [];
+  
+  // Categorias dinâmicas de séries (carregadas do Baserow)
+  List<String> _seriesCategories = [];
+  Map<String, List<TVShow>> _seriesByCategory = {};
 
   @override
   void initState() {
@@ -114,6 +125,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _baserowService.getMoviesByGenre('Ficção'),
         _baserowService.getMoviesByGenre('Romance'),
         _baserowService.getMoviesByGenre('Família'),
+        _baserowService.getNovelas(),
+        _baserowService.getTVShowsByCategory('Disney'),
+        _baserowService.getTVShowsByCategory('Netflix'),
+        _baserowService.getTVShowsByCategory('GloboPlay'),
       ]);
 
       if (mounted) {
@@ -136,13 +151,124 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             'Romance': results[13] as List<Movie>,
             'Família': results[14] as List<Movie>,
           };
+          _novelas = results[15] as List<TVShow>;
+          _seriesDisney = results[16] as List<TVShow>;
+          _seriesNetflix = results[17] as List<TVShow>;
+          _seriesGloboPlay = results[18] as List<TVShow>;
           _isLoading = false;
         });
+
+        // Pré-carregar imagens em background
+        _precacheImages(context);
+
+        // Carregar categorias dinâmicas de séries em background
+        _loadSeriesCategories();
       }
     } catch (e) {
       print('Erro ao carregar dados: $e');
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // Carrega as categorias de séries do Baserow e suas séries
+  Future<void> _loadSeriesCategories() async {
+    try {
+      final categories = await _baserowService.getSeriesCategories();
+      if (mounted) {
+        setState(() => _seriesCategories = categories);
+      }
+
+      // Carregar séries de cada categoria em paralelo
+      final futures = <Future<MapEntry<String, List<TVShow>>>>[];
+      for (final category in categories) {
+        // Extrai o nome da categoria (ex: "Séries Turcas" -> "Turcas")
+        final searchTerm = category.replaceFirst('Séries ', '');
+        futures.add(_baserowService
+            .getTVShowsByCategory(searchTerm)
+            .then((shows) => MapEntry(category, shows)));
+      }
+
+      final results = await Future.wait(futures);
+      final Map<String, List<TVShow>> seriesMap = {};
+      for (final entry in results) {
+        if (entry.value.isNotEmpty) {
+          seriesMap[entry.key] = entry.value;
+        }
+      }
+
+      if (mounted) {
+        setState(() => _seriesByCategory = seriesMap);
+      }
+    } catch (e) {
+      print('Erro ao carregar categorias de séries: $e');
+    }
+  }
+
+  // Pré-carrega as imagens dos posters para evitar loading durante scroll
+  void _precacheImages(BuildContext context) {
+    // Filmes
+    for (final movie in _trendingMovies) {
+      if (movie.posterPath != null) {
+        precacheImage(
+          CachedNetworkImageProvider(BaserowService.getImageUrl(movie.posterPath)),
+          context,
+        );
+      }
+    }
+    for (final movie in _top10Movies) {
+      if (movie.posterPath != null) {
+        precacheImage(
+          CachedNetworkImageProvider(BaserowService.getImageUrl(movie.posterPath)),
+          context,
+        );
+      }
+    }
+    for (final movie in _thisWeekMovies) {
+      if (movie.posterPath != null) {
+        precacheImage(
+          CachedNetworkImageProvider(BaserowService.getImageUrl(movie.posterPath)),
+          context,
+        );
+      }
+    }
+    
+    // Séries
+    for (final tvShow in _top10TVShows) {
+      if (tvShow.posterPath != null) {
+        precacheImage(
+          CachedNetworkImageProvider(BaserowService.getImageUrl(tvShow.posterPath)),
+          context,
+        );
+      }
+    }
+    for (final tvShow in _trendingTVShows) {
+      if (tvShow.posterPath != null) {
+        precacheImage(
+          CachedNetworkImageProvider(BaserowService.getImageUrl(tvShow.posterPath)),
+          context,
+        );
+      }
+    }
+    for (final tvShow in _novelas) {
+      if (tvShow.posterPath != null) {
+        precacheImage(
+          CachedNetworkImageProvider(BaserowService.getImageUrl(tvShow.posterPath)),
+          context,
+        );
+      }
+    }
+    
+    // Gêneros
+    for (final movies in _genreMovies.values) {
+      for (final movie in movies) {
+        if (movie.posterPath != null) {
+          precacheImage(
+            CachedNetworkImageProvider(BaserowService.getImageUrl(movie.posterPath)),
+            context,
+          );
+        }
       }
     }
   }
@@ -268,7 +394,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: PageView(
               controller: _pageController,
               onPageChanged: (index) => setState(() => _selectedTab = index),
-              children: List.generate(4, (_) => _buildCategoryContent()),
+              children: [
+                _buildExplorarContent(),
+                _buildFilmesContent(),
+                _buildSeriesContent(),
+                _buildMinhaListaContent(),
+              ],
             ),
           ),
         ),
@@ -398,7 +529,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildCategoryContent() {
+  // ===== CONTEÚDO DA ABA EXPLORAR (TUDO) =====
+  Widget _buildExplorarContent() {
     return Container(
       color: Colors.black,
       child: SingleChildScrollView(
@@ -423,6 +555,229 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  // ===== CONTEÚDO DA ABA FILMES =====
+  Widget _buildFilmesContent() {
+    final filmesProgress = _continueWatching.where((p) => p.type == 'movie').toList();
+    
+    return Container(
+      color: Colors.black,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 5),
+            // Banner de filmes
+            if (_trendingMovies.isNotEmpty)
+              BannerCarousel(movies: _trendingMovies.take(5).toList()),
+            const SizedBox(height: 20),
+            // Continue Assistindo - só filmes
+            if (filmesProgress.isNotEmpty) ...[
+              _buildContinueWatchingSectionFiltered(filmesProgress, 'Continue Assistindo'),
+              const SizedBox(height: 30),
+            ],
+            // Top 10 Filmes
+            if (_top10Movies.isNotEmpty) ...[
+              _buildTop10Section('Top 10 Filmes', _top10Movies),
+              const SizedBox(height: 30),
+            ],
+            // Tendências em Filmes
+            if (_trendingMovies.isNotEmpty) ...[
+              _buildMovieSection('Em Alta', _trendingMovies),
+              const SizedBox(height: 30),
+            ],
+            // Chegou esta semana
+            if (_thisWeekMovies.isNotEmpty) ...[
+              _buildThisWeekSection(),
+              const SizedBox(height: 30),
+            ],
+            // Gêneros de filmes
+            ..._buildFilmesGenreSections(),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===== CONTEÚDO DA ABA SÉRIES =====
+  Widget _buildSeriesContent() {
+    final seriesProgress = _continueWatching.where((p) => p.type == 'tv').toList();
+    
+    return Container(
+      color: Colors.black,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 5),
+            // Banner de séries em destaque
+            if (_trendingTVShows.isNotEmpty)
+              BannerCarouselTV(tvShows: _trendingTVShows.take(5).toList()),
+            const SizedBox(height: 20),
+            // Continue Assistindo - só séries
+            if (seriesProgress.isNotEmpty) ...[
+              _buildContinueWatchingSectionFiltered(
+                  seriesProgress, 'Continue Assistindo'),
+              const SizedBox(height: 30),
+            ],
+            // Top 10 Séries
+            if (_top10TVShows.isNotEmpty) ...[
+              _buildTop10TVSection('Top 10 Séries', _top10TVShows),
+              const SizedBox(height: 30),
+            ],
+            // Últimas Séries
+            if (_trendingTVShows.isNotEmpty) ...[
+              _buildTVSection('Últimas Séries', _trendingTVShows),
+              const SizedBox(height: 30),
+            ],
+            // Novelas
+            if (_novelas.isNotEmpty) ...[
+              _buildTVSection('Novelas', _novelas),
+              const SizedBox(height: 30),
+            ],
+            // Séries Disney+
+            if (_seriesDisney.isNotEmpty) ...[
+              _buildTVSection('Séries Disney+', _seriesDisney),
+              const SizedBox(height: 30),
+            ],
+            // Séries Netflix
+            if (_seriesNetflix.isNotEmpty) ...[
+              _buildTVSection('Séries Netflix', _seriesNetflix),
+              const SizedBox(height: 30),
+            ],
+            // Séries GloboPlay
+            if (_seriesGloboPlay.isNotEmpty) ...[
+              _buildTVSection('Séries GloboPlay', _seriesGloboPlay),
+              const SizedBox(height: 30),
+            ],
+            // Categorias dinâmicas de séries (carregadas do Baserow)
+            ..._buildDynamicSeriesSections(),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===== CONTEÚDO DA ABA MINHA LISTA =====
+  Widget _buildMinhaListaContent() {
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bookmark_border, size: 80, color: Colors.grey[700]),
+            const SizedBox(height: 16),
+            Text(
+              'Sua lista está vazia',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[400],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Adicione filmes e séries aos favoritos',
+              style: TextStyle(color: Colors.grey[600], fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Continue Assistindo filtrado (para abas Filmes e Séries)
+  Widget _buildContinueWatchingSectionFiltered(List<WatchProgress> items, String title) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 20, right: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 18),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 145,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final progress = items[index];
+              return ContinueWatchingCard(
+                progress: progress,
+                onRemove: () async {
+                  await _watchProgressService.removeProgress(
+                    progress.contentId,
+                    seasonNumber: progress.seasonNumber,
+                    episodeNumber: progress.episodeNumber,
+                  );
+                  _loadAllData();
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Seções de gêneros só para filmes
+  List<Widget> _buildFilmesGenreSections() {
+    final sections = <Widget>[];
+    
+    final genreNames = {
+      'Ação': 'Adrenalina Máxima',
+      'Comédia': 'Rir é Obrigatório',
+      'Suspense': 'Suspense que Prende',
+      'Ficção': 'Realidades Alternativas',
+      'Romance': 'Amores que Marcam',
+      'Família': 'Para Assistir em Família',
+    };
+
+    for (final entry in _genreMovies.entries) {
+      if (entry.value.isNotEmpty) {
+        final displayName = genreNames[entry.key] ?? entry.key;
+        sections.add(_buildGenreSection(displayName, entry.key));
+        sections.add(const SizedBox(height: 30));
+      }
+    }
+
+    return sections;
+  }
+
+  // Seções dinâmicas de séries (carregadas do Baserow)
+  List<Widget> _buildDynamicSeriesSections() {
+    final sections = <Widget>[];
+
+    for (final category in _seriesCategories) {
+      final shows = _seriesByCategory[category];
+      if (shows != null && shows.isNotEmpty) {
+        sections.add(_buildTVSection(category, shows));
+        sections.add(const SizedBox(height: 30));
+      }
+    }
+
+    return sections;
   }
 
   List<Widget> _buildDynamicSections() {
@@ -478,6 +833,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } else if (categoryName == 'Escolhidos para você') {
         sections.add(_buildPickedForYouSection());
         sections.add(const SizedBox(height: 30));
+      } else if (categoryName == 'Novelas') {
+        if (_novelas.isNotEmpty) {
+          sections.add(_buildTVSection('Novelas', _novelas));
+          sections.add(const SizedBox(height: 30));
+        }
+      } else if (categoryName == 'Séries Disney+') {
+        if (_seriesDisney.isNotEmpty) {
+          sections.add(_buildTVSection('Séries Disney+', _seriesDisney));
+          sections.add(const SizedBox(height: 30));
+        }
+      } else if (categoryName == 'Séries Netflix') {
+        if (_seriesNetflix.isNotEmpty) {
+          sections.add(_buildTVSection('Séries Netflix', _seriesNetflix));
+          sections.add(const SizedBox(height: 30));
+        }
+      } else if (categoryName == 'Séries GloboPlay') {
+        if (_seriesGloboPlay.isNotEmpty) {
+          sections.add(_buildTVSection('Séries GloboPlay', _seriesGloboPlay));
+          sections.add(const SizedBox(height: 30));
+        }
       }
     }
     
@@ -763,6 +1138,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             itemCount: tvShows.length,
             itemBuilder: (context, index) => TVShowCard(tvShow: tvShows[index]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMovieSection(String title, List<Movie> movies) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 20, right: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 20),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 175,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: movies.length,
+            itemBuilder: (context, index) => MovieCard(movie: movies[index]),
           ),
         ),
       ],
