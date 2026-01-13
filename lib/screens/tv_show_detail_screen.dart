@@ -29,6 +29,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
   List<TVShow> _relatedTVShows = [];
   Map<int, List<Map<String, dynamic>>> _episodesBySeason = {};
   bool _isLoading = true;
+  bool _isLoadingEpisodes = true;
   bool _isLoadingRelated = true;
   bool _isOverviewExpanded = false;
   int _selectedSeason = 1;
@@ -41,32 +42,79 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
 
   Future<void> _loadTVShowDetails() async {
     try {
+      // Carregar apenas os dados básicos da série primeiro
       final tvShow = await _baserowService.getTVShowDetails(widget.tvShowId);
+      
       if (tvShow != null && mounted) {
-        // Carregar episódios do Baserow primeiro
-        final baserowEpisodes = await _baserowService.getEpisodes(widget.tvShowId);
+        setState(() {
+          _tvShow = tvShow;
+          _isLoading = false;
+        });
         
-        // Agrupar por temporada
-        final Map<int, List<Map<String, dynamic>>> episodesBySeason = {};
-        for (final ep in baserowEpisodes) {
-          final season = ep['temporada'] as int? ?? 1;
-          episodesBySeason.putIfAbsent(season, () => []).add(ep);
-        }
+        // Carregar episódios em background
+        _loadEpisodes(tvShow);
         
-        // Definir temporada inicial
-        final seasons = episodesBySeason.keys.toList()..sort();
-        final initialSeason = seasons.isNotEmpty ? seasons.first : 1;
+        // Carregar dados secundários em background
+        _loadSecondaryData(tvShow);
+      } else if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _loadEpisodes(TVShow tvShow) async {
+    try {
+      print('Carregando episódios para série ID: ${widget.tvShowId}, Nome: ${tvShow.name}');
+      
+      // Carregar episódios do Baserow
+      final baserowEpisodes = await _baserowService.getEpisodes(widget.tvShowId);
+      
+      print('Episódios recebidos do Baserow: ${baserowEpisodes.length}');
+      
+      // Agrupar por temporada
+      final Map<int, List<Map<String, dynamic>>> episodesBySeason = {};
+      for (final ep in baserowEpisodes) {
+        final season = ep['temporada'] as int? ?? 1;
+        final epNumber = ep['episodio'] as int? ?? 1;
         
-        // Carregar dados do TMDB para complementar episódios
-        if (tvShow.tmdbId != null && tvShow.tmdbId! > 0) {
-          for (final season in seasons) {
-            try {
-              final tmdbEpisodes = await _baserowService.getTMDBSeasonEpisodes(
-                tvShow.tmdbId!,
-                season,
-              );
-              
-              // Complementar episódios do Baserow com dados do TMDB
+        // Adicionar dados do Baserow com fallback
+        episodesBySeason.putIfAbsent(season, () => []).add({
+          ...ep,
+          'name': ep['nome'] ?? 'Episódio $epNumber',
+          'overview': '',
+          'still_path': null,
+        });
+      }
+      
+      print('Temporadas encontradas: ${episodesBySeason.keys.toList()}');
+      
+      // Definir temporada inicial
+      final seasons = episodesBySeason.keys.toList()..sort();
+      final initialSeason = seasons.isNotEmpty ? seasons.first : 1;
+      
+      if (mounted) {
+        setState(() {
+          _episodesBySeason = episodesBySeason;
+          _selectedSeason = initialSeason;
+          _isLoadingEpisodes = false;
+        });
+      }
+      
+      // Carregar dados do TMDB para complementar episódios em background
+      if (tvShow.tmdbId != null && tvShow.tmdbId! > 0) {
+        for (final season in seasons) {
+          try {
+            final tmdbEpisodes = await _baserowService.getTMDBSeasonEpisodes(
+              tvShow.tmdbId!,
+              season,
+            );
+            
+            // Se TMDB retornou episódios, complementar com os dados
+            if (tmdbEpisodes.isNotEmpty) {
               final seasonEps = episodesBySeason[season] ?? [];
               for (int i = 0; i < seasonEps.length; i++) {
                 final epNumber = seasonEps[i]['episodio'] as int? ?? (i + 1);
@@ -75,36 +123,32 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                   orElse: () => <String, dynamic>{},
                 );
                 
+                // Usar dados do TMDB se disponíveis, senão manter do Baserow
                 seasonEps[i] = {
                   ...seasonEps[i],
                   'still_path': tmdbEp['still_path'],
-                  'overview': tmdbEp['overview'] ?? '',
-                  'name': tmdbEp['name'] ?? 'Episódio $epNumber',
+                  'overview': tmdbEp['overview'] ?? seasonEps[i]['overview'] ?? '',
+                  'name': tmdbEp['name'] ?? seasonEps[i]['name'] ?? 'Episódio $epNumber',
                 };
               }
-            } catch (e) {
-              // Ignora erro do TMDB, usa dados do Baserow
+              
+              // Atualizar UI após cada temporada
+              if (mounted) {
+                setState(() {
+                  _episodesBySeason = episodesBySeason;
+                });
+              }
             }
+          } catch (e) {
+            // Ignora erro do TMDB, mantém dados do Baserow
+            print('Erro ao carregar episódios do TMDB para temporada $season: $e');
           }
         }
-        
-        if (mounted) {
-          setState(() {
-            _tvShow = tvShow;
-            _episodesBySeason = episodesBySeason;
-            _selectedSeason = initialSeason;
-            _isLoading = false;
-          });
-          
-          // Carregar dados secundários em background
-          _loadSecondaryData(tvShow);
-        }
-      } else if (mounted) {
-        setState(() => _isLoading = false);
       }
     } catch (e) {
+      print('Erro ao carregar episódios: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() => _isLoadingEpisodes = false);
       }
     }
   }
@@ -249,43 +293,10 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF12CDD9),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'Série',
-                          style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      if (_tvShow!.firstAirDate.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Container(width: 4, height: 4, decoration: const BoxDecoration(color: Colors.grey, shape: BoxShape.circle)),
-                        const SizedBox(width: 8),
-                        Text(
-                          _tvShow!.firstAirDate.split('-')[0],
-                          style: const TextStyle(color: Colors.grey, fontSize: 14),
-                        ),
-                      ],
-                      if (_tvShow!.seasons != null && _tvShow!.seasons! > 0) ...[
-                        const SizedBox(width: 8),
-                        Container(width: 4, height: 4, decoration: const BoxDecoration(color: Colors.grey, shape: BoxShape.circle)),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${_tvShow!.seasons} Temporadas',
-                          style: const TextStyle(color: Colors.grey, fontSize: 14),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+                  // Título centralizado
                   Text(
                     _tvShow!.name,
                     style: const TextStyle(
@@ -294,105 +305,57 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                       height: 1.2,
                       color: Colors.white,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 10),
-                  // Categorias
-                  if (_tvShow!.categories != null && _tvShow!.categories!.isNotEmpty)
-                    Text(
-                      _tvShow!.categories!
-                          .split(',')
-                          .map((cat) => cat.trim())
-                          .where((cat) => cat.isNotEmpty)
-                          .join('  •  '),
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
+                  // Ano, Gênero e Temporadas
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE50914),
-                          borderRadius: BorderRadius.circular(6),
+                      if (_tvShow!.firstAirDate.isNotEmpty)
+                        Text(
+                          _tvShow!.firstAirDate.split('-')[0],
+                          style: TextStyle(color: Colors.grey[400], fontSize: 14),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.star, color: Colors.white, size: 16),
-                            const SizedBox(width: 4),
-                            Text(
-                              _tvShow!.voteAverage.toStringAsFixed(1),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
+                      if (_tvShow!.categories != null && _tvShow!.categories!.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Container(width: 4, height: 4, decoration: BoxDecoration(color: Colors.grey[400], shape: BoxShape.circle)),
+                        const SizedBox(width: 8),
+                        Text(
+                          _tvShow!.categories!.split(',').first.trim(),
+                          style: TextStyle(color: Colors.grey[400], fontSize: 14),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      if (_tvShow!.views != null && _tvShow!.views! > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[800]?.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.visibility, color: Colors.white, size: 16),
-                              const SizedBox(width: 4),
-                              Text(
-                                _formatViews(_tvShow!.views!),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
+                      ],
+                      if (_tvShow!.seasons != null && _tvShow!.seasons! > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(width: 4, height: 4, decoration: BoxDecoration(color: Colors.grey[400], shape: BoxShape.circle)),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${_tvShow!.seasons} Temp.',
+                          style: TextStyle(color: Colors.grey[400], fontSize: 14),
                         ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 16),
                   // Sinopse compacta
                   if (overview.isNotEmpty)
                     GestureDetector(
-                      onTap: () => setState(() => _isOverviewExpanded = !_isOverviewExpanded),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            overview,
-                            style: TextStyle(
-                              color: Colors.grey[300],
-                              fontSize: 13,
-                              height: 1.5,
-                            ),
-                            maxLines: _isOverviewExpanded ? null : 3,
-                            overflow: _isOverviewExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
-                          ),
-                          if (overview.length > 120)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(
-                                _isOverviewExpanded ? 'Ler menos' : 'Ler mais',
-                                style: const TextStyle(
-                                  color: Color(0xFF12CDD9),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                        ],
+                      onTap: () {
+                        if (overview.length > 100) {
+                          setState(() => _isOverviewExpanded = !_isOverviewExpanded);
+                        }
+                      },
+                      child: Text(
+                        overview,
+                        style: TextStyle(
+                          color: Colors.grey[300],
+                          fontSize: 13,
+                          height: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: _isOverviewExpanded ? null : 2,
+                        overflow: _isOverviewExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
                       ),
                     ),
                   const SizedBox(height: 16),
@@ -465,69 +428,120 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
   }
 
   Widget _buildEpisodesSection() {
-    // Usar dados já carregados
+    // Sempre mostrar a seção, mesmo durante o carregamento
     final seasons = _episodesBySeason.keys.toList()..sort();
-    if (seasons.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    
-    // Episódios da temporada selecionada
     final currentEpisodes = _episodesBySeason[_selectedSeason] ?? [];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Botão seletor de temporada (lado esquerdo)
-        Padding(
-          padding: const EdgeInsets.only(left: 20),
-          child: GestureDetector(
-            onTap: () => _showSeasonPicker(seasons),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.grey[850],
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.grey[700]!, width: 1),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Temporada $_selectedSeason',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 20),
-                ],
-              ),
+        // Título da seção
+        const Padding(
+          padding: EdgeInsets.only(left: 20, bottom: 12),
+          child: Text(
+            'Episódios',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
         ),
+        // Botão seletor de temporada (só mostra se tiver temporadas)
+        if (seasons.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 20),
+            child: GestureDetector(
+              onTap: () => _showSeasonPicker(seasons),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.grey[850],
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.grey[700]!, width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Temporada $_selectedSeason',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
         const SizedBox(height: 16),
         // Lista horizontal de episódios
         SizedBox(
           height: 200,
-          child: currentEpisodes.isEmpty
-              ? Center(
-                  child: Text(
-                    'Nenhum episódio disponível',
-                    style: TextStyle(color: Colors.grey[400]),
-                  ),
-                )
-              : ListView.builder(
+          child: _isLoadingEpisodes
+              ? ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: currentEpisodes.length,
-                  itemBuilder: (context, index) {
-                    final ep = currentEpisodes[index];
-                    final epNumber = ep['episodio'] ?? (index + 1);
-                    return _buildEpisodeCard(ep, epNumber);
-                  },
-                ),
+                  itemCount: 3,
+                  itemBuilder: (context, index) => Container(
+                    width: 280,
+                    margin: const EdgeInsets.only(right: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 150,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[800],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 12,
+                          width: 150,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[800],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          height: 10,
+                          width: 100,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[800],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : currentEpisodes.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          'Nenhum episódio disponível',
+                          style: TextStyle(color: Colors.grey[400]),
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: currentEpisodes.length,
+                      itemBuilder: (context, index) {
+                        final ep = currentEpisodes[index];
+                        final epNumber = ep['episodio'] ?? (index + 1);
+                        return _buildEpisodeCard(ep, epNumber);
+                      },
+                    ),
         ),
       ],
     );
@@ -595,6 +609,13 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
     final name = episode['name'] as String? ?? 'Episódio $episodeNumber';
     final link = episode['link'] as String? ?? '';
     
+    // Usar still_path do TMDB, ou backdrop da série como fallback
+    final imageUrl = stillPath != null && stillPath.isNotEmpty
+        ? 'https://image.tmdb.org/t/p/w500$stillPath'
+        : _tvShow?.backdropPath != null && _tvShow!.backdropPath!.isNotEmpty
+            ? BaserowService.getImageUrl(_tvShow!.backdropPath)
+            : null;
+    
     return GestureDetector(
       onTap: () async {
         if (link.isNotEmpty) {
@@ -607,6 +628,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                 episodeNumber: episodeNumber,
                 seasonNumber: _selectedSeason,
                 contentId: _tvShow?.id,
+                tmdbId: _tvShow?.tmdbId,
                 posterPath: _tvShow?.posterPath,
                 backdropPath: stillPath ?? _tvShow?.backdropPath,
                 type: 'tv',
@@ -636,9 +658,9 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen> {
                   SizedBox(
                     height: 150,
                     width: double.infinity,
-                    child: stillPath != null && stillPath.isNotEmpty
+                    child: imageUrl != null
                         ? CachedNetworkImage(
-                            imageUrl: 'https://image.tmdb.org/t/p/w500$stillPath',
+                            imageUrl: imageUrl,
                             fit: BoxFit.cover,
                             placeholder: (context, url) => Container(
                               color: Colors.grey[800],

@@ -4,6 +4,8 @@ import 'package:video_player/video_player.dart';
 import 'dart:async';
 import '../services/baserow_service.dart';
 import '../services/watch_progress_service.dart';
+import '../widgets/episodes_modal.dart';
+import '../widgets/next_episode_overlay.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
@@ -12,6 +14,7 @@ class VideoPlayerScreen extends StatefulWidget {
   final int? seasonNumber;
   final String? category;
   final int? contentId;
+  final int? tmdbId;
   final String? posterPath;
   final String? backdropPath;
   final String type; // 'movie' ou 'tv'
@@ -25,6 +28,7 @@ class VideoPlayerScreen extends StatefulWidget {
     this.seasonNumber,
     this.category,
     this.contentId,
+    this.tmdbId,
     this.posterPath,
     this.backdropPath,
     this.type = 'movie',
@@ -57,6 +61,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
   late Animation<Offset> _categorySlideAnimation;
   late Animation<double> _categoryFadeAnimation;
   bool _showCategoryBanner = false;
+  bool _showNextEpisodeOverlay = false;
+  Map<String, dynamic>? _nextEpisodeData;
+  bool _hasLoadedNextEpisode = false;
+  bool _hasShownOverlay = false;
+  late int _currentEpisodeNumber;
+  late int _currentSeasonNumber;
 
   final List<Map<String, dynamic>> _fitModes = [
     {'fit': BoxFit.contain, 'name': 'NORMAL', 'icon': Icons.fit_screen},
@@ -69,6 +79,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Inicializar episódio e temporada atuais
+    _currentEpisodeNumber = widget.episodeNumber ?? 1;
+    _currentSeasonNumber = widget.seasonNumber ?? 1;
+    
     _loadingController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -115,6 +130,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       _controller!.addListener(_videoListener);
       await _controller!.initialize();
       
+      // Desabilitar loop
+      await _controller!.setLooping(false);
+      
       // Se tem posição inicial, pula para ela
       if (widget.startPositionMs != null && widget.startPositionMs! > 0) {
         await _controller!.seekTo(Duration(milliseconds: widget.startPositionMs!));
@@ -143,9 +161,57 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
   }
 
   void _videoListener() {
-    if (_controller == null) return;
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    
     final isBuffering = _controller!.value.isBuffering;
     final isPlaying = _controller!.value.isPlaying;
+    final position = _controller!.value.position;
+    final duration = _controller!.value.duration;
+    
+    // Detectar se está próximo do fim para séries
+    if (widget.type == 'tv' && 
+        widget.episodeNumber != null && 
+        widget.seasonNumber != null &&
+        duration.inMilliseconds > 0) {
+      
+      final remaining = duration - position;
+      final remainingMs = duration.inMilliseconds - position.inMilliseconds;
+      
+      // Carregar próximo episódio quando faltar 30 segundos ou menos
+      if (remaining.inSeconds <= 30 && 
+          !_hasLoadedNextEpisode) {
+        print('🎬 Carregando próximo episódio em background...');
+        _hasLoadedNextEpisode = true;
+        _loadNextEpisode();
+      }
+      
+      // Detectar quando o vídeo terminou (posição >= duração - 1 segundo)
+      // ou quando faltar 10 segundos ou menos
+      final videoEnded = remainingMs <= 1000;
+      final nearEnd = remaining.inSeconds <= 10;
+      
+      if ((videoEnded || nearEnd) && 
+          !_hasShownOverlay && 
+          !_showNextEpisodeOverlay) {
+        
+        // Se ainda não carregou o próximo episódio, carregar agora
+        if (_nextEpisodeData == null && !_hasLoadedNextEpisode) {
+          _hasLoadedNextEpisode = true;
+          _loadNextEpisodeSync();
+        }
+        
+        // Se tem próximo episódio, mostrar overlay
+        if (_nextEpisodeData != null) {
+          print('📺 Mostrando overlay de próximo episódio (restante: ${remaining.inSeconds}s)');
+          _hasShownOverlay = true;
+          _showNextEpisode();
+        } else if (videoEnded) {
+          // Se não tem próximo episódio e o vídeo terminou, apenas pausar
+          print('⏹️ Vídeo terminou, sem próximo episódio');
+        }
+      }
+    }
+    
     if (isBuffering != _isBuffering || isPlaying != _isPlaying) {
       if (mounted) {
         setState(() {
@@ -154,6 +220,113 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
         });
       }
     }
+  }
+
+  // Versão síncrona para carregar próximo episódio imediatamente
+  void _loadNextEpisodeSync() {
+    _loadNextEpisode();
+  }
+
+  Future<void> _loadNextEpisode() async {
+    if (widget.contentId == null) return;
+    
+    try {
+      // Buscar todos os episódios da temporada atual
+      final episodes = await _baserowService.getEpisodesBySeason(
+        widget.contentId!,
+        _currentSeasonNumber,
+      );
+      
+      // Encontrar o próximo episódio
+      final nextEpNumber = _currentEpisodeNumber + 1;
+      final nextEpisode = episodes.firstWhere(
+        (ep) => ep['episodio'] == nextEpNumber,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      print('🔍 Buscando EP$nextEpNumber - Encontrado: ${nextEpisode.isNotEmpty}');
+      
+      if (nextEpisode.isNotEmpty && nextEpisode['link'] != null && nextEpisode['link'].toString().isNotEmpty) {
+        // Carregar dados do TMDB se disponível
+        if (widget.tmdbId != null && widget.tmdbId! > 0) {
+          try {
+            final tmdbEpisodes = await _baserowService.getTMDBSeasonEpisodes(
+              widget.tmdbId!,
+              _currentSeasonNumber,
+            );
+            
+            final tmdbEp = tmdbEpisodes.firstWhere(
+              (t) => t['episode_number'] == nextEpNumber,
+              orElse: () => <String, dynamic>{},
+            );
+            
+            if (tmdbEp.isNotEmpty) {
+              nextEpisode['still_path'] = tmdbEp['still_path'];
+              nextEpisode['overview'] = tmdbEp['overview'] ?? nextEpisode['overview'] ?? '';
+              nextEpisode['name'] = tmdbEp['name'] ?? nextEpisode['name'] ?? 'Episódio $nextEpNumber';
+              nextEpisode['runtime'] = tmdbEp['runtime'] ?? 0;
+            }
+          } catch (e) {
+            print('Erro ao carregar TMDB do próximo episódio: $e');
+          }
+        }
+        
+        print('✅ Próximo episódio carregado: ${nextEpisode['name']}');
+        
+        setState(() {
+          _nextEpisodeData = nextEpisode;
+        });
+      } else {
+        print('⚠️ Próximo episódio não encontrado ou sem link');
+      }
+    } catch (e) {
+      print('Erro ao carregar próximo episódio: $e');
+    }
+  }
+
+  void _showNextEpisode() {
+    if (_nextEpisodeData == null) return;
+    
+    // Pausar o vídeo quando mostrar o overlay
+    _controller?.pause();
+    
+    setState(() {
+      _showNextEpisodeOverlay = true;
+      _showControls = false;
+      _isPlaying = false;
+    });
+  }
+
+  void _playNextEpisode() {
+    if (_nextEpisodeData == null) {
+      print('❌ _nextEpisodeData é null');
+      return;
+    }
+    
+    final nextEpNumber = _currentEpisodeNumber + 1;
+    final videoUrl = _nextEpisodeData!['link'] as String?;
+    final stillPath = _nextEpisodeData!['still_path'] as String?;
+    
+    print('▶️ Iniciando próximo episódio: EP$nextEpNumber');
+    print('   URL: $videoUrl');
+    
+    if (videoUrl == null || videoUrl.isEmpty) {
+      print('❌ URL do próximo episódio está vazia');
+      return;
+    }
+    
+    _switchToEpisode(_currentSeasonNumber, nextEpNumber, videoUrl, stillPath);
+  }
+
+  void _cancelNextEpisode() {
+    // Retomar o vídeo se cancelar
+    _controller?.play();
+    
+    setState(() {
+      _showNextEpisodeOverlay = false;
+      _nextEpisodeData = null;
+      _isPlaying = true;
+    });
   }
 
   void _startHideControlsTimer() {
@@ -314,11 +487,21 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
               if (_isBuffering && !_isLoading) _buildBufferingIndicator(),
               if (_errorMessage != null) _buildError(),
               if (_showCategoryBanner && !_isLoading && _errorMessage == null) _buildCategoryBanner(),
-              if (_showControls && !_isLoading && _errorMessage == null) ...[
+              if (_showControls && !_isLoading && _errorMessage == null && !_showNextEpisodeOverlay) ...[
                 // Overlay escuro quando controles estão visíveis
                 Container(color: Colors.black.withOpacity(0.4)),
                 _buildControls(),
               ],
+              // Overlay de próximo episódio
+              if (_showNextEpisodeOverlay && _nextEpisodeData != null)
+                NextEpisodeOverlay(
+                  nextEpisode: _nextEpisodeData!,
+                  nextEpisodeNumber: _currentEpisodeNumber + 1,
+                  seasonNumber: _currentSeasonNumber,
+                  tvShowName: widget.title,
+                  onPlay: _playNextEpisode,
+                  onCancel: _cancelNextEpisode,
+                ),
             ],
           ),
         ),
@@ -625,7 +808,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
 
   Widget _buildBottomBtn(IconData icon, String label) {
     return GestureDetector(
-      onTap: () {},
+      onTap: () {
+        if (label == 'EPISÓDIOS') {
+          _showEpisodesModal();
+        }
+      },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -635,5 +822,96 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
         ],
       ),
     );
+  }
+
+  void _showEpisodesModal() {
+    if (widget.contentId == null || widget.seasonNumber == null) return;
+    
+    // Usar Navigator.push com PageRouteBuilder para overlay transparente
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierDismissible: true,
+        barrierColor: Colors.transparent,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return FadeTransition(
+            opacity: animation,
+            child: EpisodesModal(
+              tvShowId: widget.contentId!,
+              tmdbId: widget.tmdbId,
+              currentSeason: widget.seasonNumber!,
+              currentEpisode: widget.episodeNumber,
+              tvShowName: widget.title,
+              posterPath: widget.posterPath,
+              backdropPath: widget.backdropPath,
+              onEpisodeSelected: (seasonNumber, episodeNumber, videoUrl, stillPath) {
+                _switchToEpisode(seasonNumber, episodeNumber, videoUrl, stillPath);
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _switchToEpisode(int seasonNumber, int episodeNumber, String videoUrl, String? stillPath) async {
+    print('🔄 Trocando para episódio: T${seasonNumber}E$episodeNumber');
+    print('   URL: $videoUrl');
+    
+    // Salva progresso do episódio atual antes de trocar
+    await _saveCurrentProgress();
+    
+    // Para o vídeo atual
+    await _controller?.pause();
+    _controller?.removeListener(_videoListener);
+    await _controller?.dispose();
+    
+    // Resetar flags e atualizar episódio atual
+    setState(() {
+      _isLoading = true;
+      _viewCounted = false;
+      _showNextEpisodeOverlay = false;
+      _nextEpisodeData = null;
+      _hasLoadedNextEpisode = false;
+      _hasShownOverlay = false;
+      _currentEpisodeNumber = episodeNumber;
+      _currentSeasonNumber = seasonNumber;
+    });
+    
+    try {
+      // Inicializa novo vídeo
+      _controller = VideoPlayerController.networkUrl(
+        Uri.parse(videoUrl),
+        httpHeaders: {
+          'User-Agent': 'Mozilla/5.0',
+        },
+      );
+
+      _controller!.addListener(_videoListener);
+      await _controller!.initialize();
+      
+      // Desabilitar loop
+      await _controller!.setLooping(false);
+      
+      await _controller!.play();
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isPlaying = true;
+        });
+        _startHideControlsTimer();
+        _countView();
+        print('✅ Episódio T${seasonNumber}E$episodeNumber iniciado com sucesso');
+      }
+    } catch (e) {
+      print('❌ Erro ao carregar episódio: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Erro ao carregar episódio';
+        });
+      }
+    }
   }
 }

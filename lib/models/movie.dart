@@ -12,6 +12,7 @@ class Movie {
   final int? views;
   final int? tmdbId;
   final String? categories;
+  final String? addedDate; // Data de adição no Baserow
 
   Movie({
     required this.id,
@@ -27,6 +28,7 @@ class Movie {
     this.views,
     this.tmdbId,
     this.categories,
+    this.addedDate,
   });
 
   factory Movie.fromJson(Map<String, dynamic> json) {
@@ -44,6 +46,7 @@ class Movie {
       views: json['views'],
       tmdbId: json['tmdb_id'],
       categories: json['categories'],
+      addedDate: json['added_date'],
     );
   }
 
@@ -62,6 +65,7 @@ class Movie {
       'views': views,
       'tmdb_id': tmdbId,
       'categories': categories,
+      'added_date': addedDate,
     };
   }
 }

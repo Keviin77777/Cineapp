@@ -41,10 +41,10 @@ class FeaturedMovieCard extends StatelessWidget {
       },
       child: Container(
         width: 190,
-        height: 280,
+        height: 250,
         margin: const EdgeInsets.only(right: 5),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(
             color: Colors.grey[700]!.withOpacity(0.5),
             width: 1,
@@ -59,7 +59,7 @@ class FeaturedMovieCard extends StatelessWidget {
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(7),
+          borderRadius: BorderRadius.circular(4),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -104,10 +104,10 @@ class FeaturedMovieCard extends StatelessWidget {
                   top: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFF9A0007),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(3),
                     ),
                     child: const Column(
                       mainAxisSize: MainAxisSize.min,
@@ -116,7 +116,7 @@ class FeaturedMovieCard extends StatelessWidget {
                           'TOP',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: FontWeight.bold,
                             height: 1,
                           ),
@@ -125,7 +125,7 @@ class FeaturedMovieCard extends StatelessWidget {
                           '10',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 14,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                             height: 1.1,
                           ),
@@ -169,10 +169,10 @@ class FeaturedTVShowCard extends StatelessWidget {
       },
       child: Container(
         width: 190,
-        height: 280,
+        height: 250,
         margin: const EdgeInsets.only(right: 5),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(
             color: Colors.grey[700]!.withOpacity(0.5),
             width: 1,
@@ -187,7 +187,7 @@ class FeaturedTVShowCard extends StatelessWidget {
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(4),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -232,10 +232,10 @@ class FeaturedTVShowCard extends StatelessWidget {
                   top: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFF9A0007),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(3),
                     ),
                     child: const Column(
                       mainAxisSize: MainAxisSize.min,
@@ -244,7 +244,7 @@ class FeaturedTVShowCard extends StatelessWidget {
                           'TOP',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: FontWeight.bold,
                             height: 1,
                           ),
@@ -253,7 +253,7 @@ class FeaturedTVShowCard extends StatelessWidget {
                           '10',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 14,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                             height: 1.1,
                           ),

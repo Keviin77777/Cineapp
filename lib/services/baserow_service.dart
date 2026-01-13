@@ -84,7 +84,7 @@ class BaserowService {
         // Converte para Movie ou TVShow baseado no tipo
         return results.map((item) {
           final tipo = item['Tipo']?.toString() ?? '';
-          if (tipo == 'Series') {
+          if (tipo == 'Séries') {
             return _convertToTVShow(item);
           } else {
             return _convertToMovie(item);
@@ -94,6 +94,26 @@ class BaserowService {
       return [];
     } catch (e) {
       print('Erro getLatestContent: $e');
+      return [];
+    }
+  }
+
+  // Buscar filmes escolhidos para você (melhor rating e mais views)
+  Future<List<Movie>> getPickedForYou() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Imdb,-Views&filter__Tipo__equal=Filmes&size=15'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        return results.map((item) => _convertToMovie(item)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Erro getPickedForYou: $e');
       return [];
     }
   }
@@ -142,7 +162,7 @@ class BaserowService {
   Future<List<TVShow>> getTop10TVShows() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Views&filter__Tipo__equal=Series&size=10'),
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Views&filter__Tipo__equal=Séries&size=10'),
         headers: _headers,
       );
 
@@ -162,7 +182,7 @@ class BaserowService {
   Future<List<TVShow>> getTrendingTVShows() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Data&filter__Tipo__equal=Series&size=20'),
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Data&filter__Tipo__equal=Séries&size=20'),
         headers: _headers,
       );
 
@@ -219,36 +239,148 @@ class BaserowService {
   // Episódios de uma série
   Future<List<Map<String, dynamic>>> getEpisodes(int seriesId) async {
     try {
-      // Buscar todos os episódios da série (não filtrar por temporada aqui)
-      final response = await http.get(
-        Uri.parse('$_baseUrl/$_episodesTableId/?user_field_names=true&size=100'),
-        headers: _headers,
-      );
+      // Buscar o nome da série
+      final seriesData = await _getSeriesData(seriesId);
+      final seriesName = seriesData['name'] ?? '';
+      
+      if (seriesName.isEmpty) {
+        print('Nome da série não encontrado para ID: $seriesId');
+        return [];
+      }
+      
+      print('Buscando episódios para série: $seriesName (ID: $seriesId)');
+      
+      // Tentar buscar com filtro primeiro (mais eficiente)
+      var url = '$_baseUrl/$_episodesTableId/?user_field_names=true&size=200&filter__Nome__contains=$seriesName';
+      
+      var response = await http.get(Uri.parse(url), headers: _headers);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List results = data['results'] ?? [];
+        var data = json.decode(response.body);
+        var results = data['results'] as List? ?? [];
         
-        // Filtrar episódios que pertencem à série (pelo nome da série)
-        final seriesName = await _getSeriesName(seriesId);
-        final filteredResults = results.where((item) {
-          final episodeName = item['Nome']?.toString() ?? '';
-          return episodeName.toLowerCase().contains(seriesName.toLowerCase());
-        }).toList();
+        print('Episódios encontrados com filtro API: ${results.length}');
         
-        return filteredResults.map((item) => {
+        // Se não encontrou com filtro, busca todos e filtra localmente
+        if (results.isEmpty) {
+          print('Tentando buscar todos os episódios sem filtro...');
+          response = await http.get(
+            Uri.parse('$_baseUrl/$_episodesTableId/?user_field_names=true&size=500'),
+            headers: _headers,
+          );
+          
+          if (response.statusCode == 200) {
+            data = json.decode(response.body);
+            results = data['results'] as List? ?? [];
+            
+            print('Total de episódios na tabela: ${results.length}');
+            
+            // Normalizar nome da série para comparação
+            final seriesNameNormalized = _normalizeName(seriesName);
+            
+            print('Nome normalizado da série: "$seriesNameNormalized"');
+            
+            // Filtrar episódios que pertencem à série
+            results = results.where((item) {
+              final episodeName = item['Nome']?.toString() ?? '';
+              final episodeNameNormalized = _normalizeName(episodeName);
+              
+              // Match exato ou contém o nome da série
+              return episodeNameNormalized == seriesNameNormalized ||
+                     episodeNameNormalized.contains(seriesNameNormalized) ||
+                     episodeNameNormalized.startsWith(seriesNameNormalized);
+            }).toList();
+            
+            print('Episódios filtrados localmente: ${results.length}');
+          }
+        }
+        
+        if (results.isEmpty) {
+          print('Nenhum episódio encontrado para "$seriesName"');
+          return [];
+        }
+        
+        return results.map((item) => {
           'id': _parseInt(item['id']),
           'nome': item['Nome'] ?? '',
           'link': item['Link'] ?? '',
           'temporada': _parseInt(item['Temporada']),
-          'episodio': _parseInt(item['Episodio']),
+          'episodio': _parseInt(item['Episódio']),
           'data': item['Data'] ?? '',
         }).toList();
       }
+      
+      print('Erro na resposta da API: ${response.statusCode}');
       return [];
     } catch (e) {
       print('Erro getEpisodes: $e');
       return [];
+    }
+  }
+
+  // Episódios de uma temporada específica
+  Future<List<Map<String, dynamic>>> getEpisodesBySeason(int seriesId, int seasonNumber) async {
+    try {
+      // Buscar todos os episódios da série
+      final allEpisodes = await getEpisodes(seriesId);
+      
+      // Filtrar pela temporada específica
+      final seasonEpisodes = allEpisodes
+          .where((ep) => ep['temporada'] == seasonNumber)
+          .toList();
+      
+      // Ordenar por número do episódio
+      seasonEpisodes.sort((a, b) => 
+        (a['episodio'] as int).compareTo(b['episodio'] as int)
+      );
+      
+      print('Episódios da temporada $seasonNumber: ${seasonEpisodes.length}');
+      
+      return seasonEpisodes;
+    } catch (e) {
+      print('Erro getEpisodesBySeason: $e');
+      return [];
+    }
+  }
+
+  // Normalizar nome para comparação (remove acentos, espaços extras, lowercase)
+  String _normalizeName(String name) {
+    return name
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ')  // Remove espaços extras
+        .replaceAll('á', 'a')
+        .replaceAll('à', 'a')
+        .replaceAll('ã', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ô', 'o')
+        .replaceAll('õ', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ç', 'c');
+  }
+
+  // Helper para pegar o nome e UID da série
+  Future<Map<String, dynamic>> _getSeriesData(int seriesId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/$seriesId/?user_field_names=true'),
+        headers: _headers,
+      );
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return {
+          'name': data['Nome'] ?? '',
+          'uid': data['UID'],
+        };
+      }
+      return {'name': '', 'uid': null};
+    } catch (e) {
+      return {'name': '', 'uid': null};
     }
   }
 
@@ -293,6 +425,76 @@ class BaserowService {
     }
   }
 
+  // Buscar categorias da home
+  Future<List<Map<String, dynamic>>> getHomeCategories() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_categoriesTableId/?user_field_names=true&size=50'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        return results.map((item) => {
+          'id': _parseInt(item['id']),
+          'nome': item['Nome'] ?? '',
+          'data': item['Data'] ?? '',
+        }).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Erro getHomeCategories: $e');
+      return [];
+    }
+  }
+
+  // Buscar filmes por gênero/categoria
+  Future<List<Movie>> getMoviesByGenre(String genre) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$genre&filter__Tipo__equal=Filmes&size=20'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        return results.map((item) => _convertToMovie(item)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Erro getMoviesByGenre: $e');
+      return [];
+    }
+  }
+
+  // Buscar filmes adicionados esta semana
+  Future<List<Movie>> getMoviesThisWeek() async {
+    try {
+      // Calcular data de 7 dias atrás
+      final now = DateTime.now();
+      final weekAgo = now.subtract(const Duration(days: 7));
+      final weekAgoStr = '${weekAgo.year}-${weekAgo.month.toString().padLeft(2, '0')}-${weekAgo.day.toString().padLeft(2, '0')}';
+      
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Data__date_after=$weekAgoStr&filter__Tipo__equal=Filmes&order_by=-Data&size=20'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        return results.map((item) => _convertToMovie(item)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Erro getMoviesThisWeek: $e');
+      return [];
+    }
+  }
+
+
   // Converter para Movie
   Movie _convertToMovie(Map<String, dynamic> item) {
     // Processar categorias - tentar ambos os nomes de campo (singular e plural)
@@ -331,6 +533,7 @@ class BaserowService {
       views: _parseInt(item['Views']),
       tmdbId: _parseInt(item['UID']),
       categories: categoriesStr,
+      addedDate: item['Data']?.toString(),
     );
   }
 
@@ -623,7 +826,7 @@ class BaserowService {
   Future<List<TVShow>> getRelatedTVShows(String category, int excludeId) async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categorias__contains=$category&filter__Tipo__equal=Series&size=10'),
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categorias__contains=$category&filter__Tipo__equal=Séries&size=10'),
         headers: _headers,
       );
 

@@ -139,10 +139,6 @@ class ContinueWatchingCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // Botão play central
-              const Center(
-                child: Icon(Icons.play_circle_filled, size: 42, color: Colors.white),
-              ),
               // Título e info
               Positioned(
                 bottom: 24,
