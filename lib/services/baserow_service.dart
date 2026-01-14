@@ -6,6 +6,7 @@ import '../models/tv_show.dart';
 class BaserowService {
   // Servidor Baserow próprio
   static const String _baseUrl = 'http://213.199.56.115/api/database/rows/table';
+  static const String _fieldsUrl = 'http://213.199.56.115/api/database/fields';
   static const String _token = 'LR1atLkF7ZXGJyay195JMnwGWAlkjPIZ';
   
   // IDs das tabelas no servidor próprio
@@ -14,6 +15,10 @@ class BaserowService {
   static const int _categoriesTableId = 4933;   // Tabela Categorias
   static const int _notificationsTableId = 4934; // Tabela Enviar Notificações
   static const int _episodesTableId = 4935;     // Tabela Episodios
+  static const int _categoryLibraryTableId = 4997; // Tabela Categoria Biblioteca
+  
+  // ID do campo Categoria na tabela Filmes & Series
+  static const int _categoryFieldId = 33147;
 
   static Map<String, String> get _headers => {
     'Authorization': 'Token $_token',
@@ -155,8 +160,25 @@ class BaserowService {
   // Top 10 séries por Views (mais assistidas)
   Future<List<TVShow>> getTop10TVShows() async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Views&filter__Tipo__equal=Séries&size=10'),
+      // Tenta primeiro com "Series" sem acento
+      var response = await http.get(
+        Uri.parse(
+            '$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Views&filter__Tipo__equal=Series&size=10'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        if (results.isNotEmpty) {
+          return results.map((item) => _convertToTVShow(item)).toList();
+        }
+      }
+
+      // Fallback: tenta com "Séries" com acento
+      response = await http.get(
+        Uri.parse(
+            '$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Views&filter__Tipo__equal=Séries&size=10'),
         headers: _headers,
       );
 
@@ -174,8 +196,25 @@ class BaserowService {
   // Séries em alta (ordenadas por data de criação - mais recentes)
   Future<List<TVShow>> getTrendingTVShows() async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Data&filter__Tipo__equal=Séries&size=10'),
+      // Tenta primeiro com "Series" sem acento
+      var response = await http.get(
+        Uri.parse(
+            '$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Data&filter__Tipo__equal=Series&size=10'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        if (results.isNotEmpty) {
+          return results.map((item) => _convertToTVShow(item)).toList();
+        }
+      }
+
+      // Fallback: tenta com "Séries" com acento
+      response = await http.get(
+        Uri.parse(
+            '$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Data&filter__Tipo__equal=Séries&size=10'),
         headers: _headers,
       );
 
@@ -478,6 +517,602 @@ class BaserowService {
         final data = json.decode(response.body);
         final List results = data['results'] ?? [];
         return results.map((item) => _convertToMovie(item)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Buscar filmes por gênero com paginação (para tela de categoria)
+  Future<Map<String, dynamic>> getMoviesByGenrePaginated(String genre, {int page = 1, int size = 30}) async {
+    try {
+      final Map<String, String> genreMapping = {
+        'Ação': 'Filmes | Acao',
+        'Comédia': 'Filmes | Comedia',
+        'Suspense': 'Filmes | Suspense',
+        'Ficção': 'Filmes | Ficcao',
+        'Romance': 'Filmes | Romance',
+        'Família': 'Filmes | Família',
+        'Terror': 'Filmes | Terror',
+        'Drama': 'Filmes | Drama',
+        'Aventura': 'Filmes | Aventura',
+      };
+      
+      final searchTerm = genreMapping[genre] ?? 'Filmes | $genre';
+      
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$searchTerm&size=$size&page=$page'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        final hasNext = data['next'] != null;
+        return {
+          'movies': results.map((item) => _convertToMovie(item)).toList(),
+          'hasNext': hasNext,
+          'total': data['count'] ?? 0,
+        };
+      }
+      return {'movies': <Movie>[], 'hasNext': false, 'total': 0};
+    } catch (e) {
+      return {'movies': <Movie>[], 'hasNext': false, 'total': 0};
+    }
+  }
+
+  // Buscar séries por categoria com paginação
+  Future<Map<String, dynamic>> getTVShowsByCategoryPaginated(String category, {int page = 1, int size = 30}) async {
+    try {
+      final Map<String, String> categoryMapping = {
+        'Disney': 'Series | Disney Plus',
+        'Netflix': 'Series | Netflix',
+        'GloboPlay': 'Series | Globoplay',
+        'Novelas': 'Series | Novelas',
+        'Ultimas': '', // Busca todas as séries ordenadas por data
+      };
+      
+      final searchTerm = categoryMapping[category] ?? 'Series | $category';
+      
+      String url;
+      if (category == 'Ultimas' || searchTerm.isEmpty) {
+        // Últimas séries - busca todas ordenadas por data
+        url = '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Tipo__equal=Series&order_by=-Data&size=$size&page=$page';
+      } else {
+        url = '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$searchTerm&size=$size&page=$page';
+      }
+      
+      final response = await http.get(Uri.parse(url), headers: _headers);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        final hasNext = data['next'] != null;
+        return {
+          'tvShows': results.map((item) => _convertToTVShow(item)).toList(),
+          'hasNext': hasNext,
+          'total': data['count'] ?? 0,
+        };
+      }
+      return {'tvShows': <TVShow>[], 'hasNext': false, 'total': 0};
+    } catch (e) {
+      return {'tvShows': <TVShow>[], 'hasNext': false, 'total': 0};
+    }
+  }
+
+  // Buscar novelas com paginação
+  Future<Map<String, dynamic>> getNovelsPaginated({int page = 1, int size = 30}) async {
+    try {
+      // Busca por "Series | Novelas" ou "Novelas"
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=Novelas&size=$size&page=$page'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        final hasNext = data['next'] != null;
+        return {
+          'tvShows': results.map((item) => _convertToTVShow(item)).toList(),
+          'hasNext': hasNext,
+          'total': data['count'] ?? 0,
+        };
+      }
+      return {'tvShows': <TVShow>[], 'hasNext': false, 'total': 0};
+    } catch (e) {
+      return {'tvShows': <TVShow>[], 'hasNext': false, 'total': 0};
+    }
+  }
+
+  // Buscar TODOS os filmes com paginação (para biblioteca)
+  // sortBy: 'Recentes', 'A-Z', 'Z-A', 'Mais vistos'
+  // category: categoria específica (ex: 'Ação', 'Comédia')
+  Future<Map<String, dynamic>> getAllMoviesPaginated({
+    int page = 1, 
+    int size = 30,
+    String sortBy = 'Recentes',
+    String? category,
+  }) async {
+    try {
+      // Monta a ordenação
+      String orderBy;
+      switch (sortBy) {
+        case 'A-Z':
+          orderBy = 'Nome';
+          break;
+        case 'Z-A':
+          orderBy = '-Nome';
+          break;
+        case 'Mais vistos':
+          orderBy = '-Views';
+          break;
+        default: // Recentes
+          orderBy = '-Data';
+      }
+      
+      String url = '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Tipo__equal=Filmes&order_by=$orderBy&size=$size&page=$page';
+      
+      // Adiciona filtro de categoria se especificado
+      if (category != null && category.isNotEmpty) {
+        final Map<String, String> categoryMapping = {
+          'Ação': 'Filmes | Acao',
+          'Animação': 'Filmes | Animacao',
+          'Aventura': 'Filmes | Aventura',
+          'Cinema': 'Filmes | Cinema',
+          'Comédia': 'Filmes | Comedia',
+          'Documentarios': 'Documentarios',
+          'Drama': 'Filmes | Drama',
+          'Família': 'Filmes | Familia',
+          'Fantasia': 'Filmes | Fantasia',
+          'Faroeste': 'Filmes | Faroeste',
+          'Ficção': 'Filmes | Ficcao',
+          'Guerra': 'Filmes | Guerra',
+          'Lançamentos': 'Filmes | Lancamentos',
+          'Lançamentos 2025': 'Filmes | Lancamentos 2025',
+          'Nacionais': 'Filmes | Nacionais',
+          'Religiosos': 'Filmes | Religiosos',
+          'Romance': 'Filmes | Romance',
+          'Suspense': 'Filmes | Suspense',
+          'Terror': 'Filmes | Terror',
+        };
+        final searchTerm = categoryMapping[category] ?? 'Filmes | $category';
+        url += '&filter__Categoria__contains=$searchTerm';
+      }
+      
+      final response = await http.get(Uri.parse(url), headers: _headers);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        final hasNext = data['next'] != null;
+        return {
+          'movies': results.map((item) => _convertToMovie(item)).toList(),
+          'hasNext': hasNext,
+          'total': data['count'] ?? 0,
+        };
+      }
+      return {'movies': <Movie>[], 'hasNext': false, 'total': 0};
+    } catch (e) {
+      return {'movies': <Movie>[], 'hasNext': false, 'total': 0};
+    }
+  }
+
+  // Buscar TODAS as séries com paginação (para biblioteca)
+  // sortBy: 'Recentes', 'A-Z', 'Z-A', 'Mais vistos'
+  // category: categoria específica (ex: 'Netflix', 'Disney Plus')
+  Future<Map<String, dynamic>> getAllSeriesPaginated({
+    int page = 1, 
+    int size = 30,
+    String sortBy = 'Recentes',
+    String? category,
+  }) async {
+    try {
+      // Monta a ordenação
+      String orderBy;
+      switch (sortBy) {
+        case 'A-Z':
+          orderBy = 'Nome';
+          break;
+        case 'Z-A':
+          orderBy = '-Nome';
+          break;
+        case 'Mais vistos':
+          orderBy = '-Views';
+          break;
+        default: // Recentes
+          orderBy = '-Data';
+      }
+      
+      String url = '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Tipo__equal=Series&order_by=$orderBy&size=$size&page=$page';
+      
+      // Adiciona filtro de categoria se especificado
+      if (category != null && category.isNotEmpty) {
+        final searchTerm = 'Series | $category';
+        url += '&filter__Categoria__contains=$searchTerm';
+      }
+      
+      final response = await http.get(Uri.parse(url), headers: _headers);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        final hasNext = data['next'] != null;
+        return {
+          'tvShows': results.map((item) => _convertToTVShow(item)).toList(),
+          'hasNext': hasNext,
+          'total': data['count'] ?? 0,
+        };
+      }
+      return {'tvShows': <TVShow>[], 'hasNext': false, 'total': 0};
+    } catch (e) {
+      return {'tvShows': <TVShow>[], 'hasNext': false, 'total': 0};
+    }
+  }
+
+  // Buscar animes (Crunchyroll) com paginação
+  Future<Map<String, dynamic>> getAnimesPaginated({int page = 1, int size = 30}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=Series | Crunchyroll&size=$size&page=$page'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        final hasNext = data['next'] != null;
+        return {
+          'tvShows': results.map((item) => _convertToTVShow(item)).toList(),
+          'hasNext': hasNext,
+          'total': data['count'] ?? 0,
+        };
+      }
+      return {'tvShows': <TVShow>[], 'hasNext': false, 'total': 0};
+    } catch (e) {
+      return {'tvShows': <TVShow>[], 'hasNext': false, 'total': 0};
+    }
+  }
+
+  // Buscar categorias da tabela Categoria Biblioteca (4997)
+  // Retorna todas as categorias de filmes (que começam com "Filmes |")
+  Future<List<String>> getMovieCategories() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_categoryLibraryTableId/?user_field_names=true&size=100'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        final List<String> categories = [];
+        
+        for (final item in results) {
+          final nome = item['Nome']?.toString() ?? '';
+          // Pega categorias que começam com "Filmes |"
+          if (nome.startsWith('Filmes |')) {
+            // Extrai o nome legível (ex: "Filmes | Acao" -> "Ação")
+            final parts = nome.split('|');
+            if (parts.length > 1) {
+              final catName = parts[1].trim();
+              // Mapeia para nome legível com acentos
+              final Map<String, String> reverseMapping = {
+                'Acao': 'Ação',
+                'Comedia': 'Comédia',
+                'Ficcao': 'Ficção',
+                'Familia': 'Família',
+                'Animacao': 'Animação',
+                'Lancamentos': 'Lançamentos',
+                'Lancamentos 2025': 'Lançamentos 2025',
+              };
+              categories.add(reverseMapping[catName] ?? catName);
+            }
+          }
+        }
+        return categories;
+      }
+      return [];
+    } catch (e) {
+      print('Erro ao buscar categorias de filmes: $e');
+      return [];
+    }
+  }
+
+  // Buscar categorias de séries da tabela Categoria Biblioteca (4997)
+  Future<List<String>> getSeriesCategoriesForLibrary() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_categoryLibraryTableId/?user_field_names=true&size=100'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        final List<String> categories = [];
+        
+        for (final item in results) {
+          final nome = item['Nome']?.toString() ?? '';
+          // Pega categorias que começam com "Series |"
+          if (nome.startsWith('Series |')) {
+            final parts = nome.split('|');
+            if (parts.length > 1) {
+              categories.add(parts[1].trim());
+            }
+          }
+        }
+        return categories;
+      }
+      return [];
+    } catch (e) {
+      print('Erro ao buscar categorias de séries: $e');
+      return [];
+    }
+  }
+
+  // Buscar filmes por categoria específica com paginação
+  Future<Map<String, dynamic>> getMoviesByCategoryPaginated(String category, {int page = 1, int size = 30}) async {
+    try {
+      final Map<String, String> categoryMapping = {
+        'Ação': 'Filmes | Acao',
+        'Comédia': 'Filmes | Comedia',
+        'Ficção': 'Filmes | Ficcao',
+        'Família': 'Filmes | Familia',
+      };
+      
+      final searchTerm = categoryMapping[category] ?? 'Filmes | $category';
+      
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$searchTerm&size=$size&page=$page'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        final hasNext = data['next'] != null;
+        return {
+          'movies': results.map((item) => _convertToMovie(item)).toList(),
+          'hasNext': hasNext,
+          'total': data['count'] ?? 0,
+        };
+      }
+      return {'movies': <Movie>[], 'hasNext': false, 'total': 0};
+    } catch (e) {
+      return {'movies': <Movie>[], 'hasNext': false, 'total': 0};
+    }
+  }
+
+  // Buscar séries por categoria específica com paginação (para biblioteca)
+  Future<Map<String, dynamic>> getSeriesByCategoryPaginated(String category, {int page = 1, int size = 30}) async {
+    try {
+      final searchTerm = 'Series | $category';
+      
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$searchTerm&size=$size&page=$page'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        final hasNext = data['next'] != null;
+        return {
+          'tvShows': results.map((item) => _convertToTVShow(item)).toList(),
+          'hasNext': hasNext,
+          'total': data['count'] ?? 0,
+        };
+      }
+      return {'tvShows': <TVShow>[], 'hasNext': false, 'total': 0};
+    } catch (e) {
+      return {'tvShows': <TVShow>[], 'hasNext': false, 'total': 0};
+    }
+  }
+
+  Future<List<Movie>> getAllMoviesByGenre(String genre) async {
+    try {
+      final Map<String, String> genreMapping = {
+        'Ação': 'Filmes | Acao',
+        'Comédia': 'Filmes | Comedia',
+        'Suspense': 'Filmes | Suspense',
+        'Ficção': 'Filmes | Ficcao',
+        'Romance': 'Filmes | Romance',
+        'Família': 'Filmes | Família',
+        'Terror': 'Filmes | Terror',
+        'Drama': 'Filmes | Drama',
+        'Aventura': 'Filmes | Aventura',
+      };
+      
+      final searchTerm = genreMapping[genre] ?? 'Filmes | $genre';
+      
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$searchTerm&size=200'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        return results.map((item) => _convertToMovie(item)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Buscar TODAS as séries por categoria (sem limite)
+  Future<List<TVShow>> getAllTVShowsByCategory(String category) async {
+    try {
+      final Map<String, String> categoryMapping = {
+        'Disney': 'Series | Disney Plus',
+        'Netflix': 'Series | Netflix',
+        'GloboPlay': 'Series | Globoplay',
+        'Novelas': 'Series | Novelas',
+        'Ultimas': '', // Caso especial - busca todas as séries recentes
+      };
+      
+      // Caso especial para "Últimas Séries"
+      if (category == 'Ultimas') {
+        var response = await http.get(
+          Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Data&filter__Tipo__equal=Series&size=200'),
+          headers: _headers,
+        );
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final List results = data['results'] ?? [];
+          if (results.isNotEmpty) {
+            return results.map((item) => _convertToTVShow(item)).toList();
+          }
+        }
+
+        // Fallback com acento
+        response = await http.get(
+          Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=-Data&filter__Tipo__equal=Séries&size=200'),
+          headers: _headers,
+        );
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final List results = data['results'] ?? [];
+          return results.map((item) => _convertToTVShow(item)).toList();
+        }
+        return [];
+      }
+      
+      final searchTerm = categoryMapping[category] ?? 'Series | $category';
+      
+      var response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$searchTerm&size=200'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        if (results.isNotEmpty) {
+          return results.map((item) => _convertToTVShow(item)).toList();
+        }
+      }
+
+      // Fallback: tenta com has
+      response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__has=$searchTerm&size=200'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        return results.map((item) => _convertToTVShow(item)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Erro ao buscar todas as séries por categoria $category: $e');
+      return [];
+    }
+  }
+
+  // Buscar TODAS as novelas (sem limite)
+  Future<List<TVShow>> getAllNovelas() async {
+    try {
+      final Set<int> addedIds = {};
+      final List<TVShow> allNovelas = [];
+
+      // Busca por "Series | Novelas"
+      final response1 = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=Series | Novelas&size=200'),
+        headers: _headers,
+      );
+
+      if (response1.statusCode == 200) {
+        final data = json.decode(response1.body);
+        final List results = data['results'] ?? [];
+        for (final item in results) {
+          final id = _parseInt(item['id']);
+          if (!addedIds.contains(id)) {
+            addedIds.add(id);
+            allNovelas.add(_convertToTVShow(item));
+          }
+        }
+      }
+
+      // Busca por "Novelas"
+      final response2 = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=Novelas&size=200'),
+        headers: _headers,
+      );
+
+      if (response2.statusCode == 200) {
+        final data = json.decode(response2.body);
+        final List results = data['results'] ?? [];
+        for (final item in results) {
+          final id = _parseInt(item['id']);
+          if (!addedIds.contains(id)) {
+            addedIds.add(id);
+            allNovelas.add(_convertToTVShow(item));
+          }
+        }
+      }
+
+      return allNovelas;
+    } catch (e) {
+      print('Erro ao buscar todas as novelas: $e');
+      return [];
+    }
+  }
+
+  // Buscar TODOS os filmes (para seções como "Escolhidos para você", "Esta semana", etc)
+  Future<List<Movie>> getAllMovies({String? orderBy}) async {
+    try {
+      final order = orderBy ?? '-Data';
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=$order&filter__Tipo__equal=Filmes&size=200'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        return results.map((item) => _convertToMovie(item)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Buscar TODAS as séries (para Top 10, etc)
+  Future<List<TVShow>> getAllTVShows({String? orderBy}) async {
+    try {
+      final order = orderBy ?? '-Data';
+      
+      var response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=$order&filter__Tipo__equal=Series&size=200'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        if (results.isNotEmpty) {
+          return results.map((item) => _convertToTVShow(item)).toList();
+        }
+      }
+
+      // Fallback com acento
+      response = await http.get(
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&order_by=$order&filter__Tipo__equal=Séries&size=200'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        return results.map((item) => _convertToTVShow(item)).toList();
       }
       return [];
     } catch (e) {
@@ -855,13 +1490,23 @@ class BaserowService {
     }
   }
 
-  // Buscar séries por categoria específica (Novelas, Disney+, Netflix, GloboPlay)
+  // Buscar séries por categoria específica (Disney+, Netflix, GloboPlay)
+  // Formato da categoria no Baserow: "Series | Disney Plus", "Series | Netflix", "Series | Globoplay"
   Future<List<TVShow>> getTVShowsByCategory(String category) async {
     try {
-      // Tenta primeiro com contains (para campo texto)
+      // Mapeia o nome da categoria para o formato do Baserow (sem acento em "Series")
+      final Map<String, String> categoryMapping = {
+        'Disney': 'Series | Disney Plus',
+        'Netflix': 'Series | Netflix',
+        'GloboPlay': 'Series | Globoplay',
+      };
+      
+      final searchTerm = categoryMapping[category] ?? 'Series | $category';
+      
+      // Busca pela categoria (campo Categoria contém o termo)
       var response = await http.get(
         Uri.parse(
-            '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$category&filter__Tipo__equal=Séries&size=10'),
+            '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$searchTerm&size=15'),
         headers: _headers,
       );
 
@@ -876,7 +1521,7 @@ class BaserowService {
       // Se não encontrou, tenta com filtro para multiple select (has)
       response = await http.get(
         Uri.parse(
-            '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__has=$category&filter__Tipo__equal=Séries&size=10'),
+            '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__has=$searchTerm&size=15'),
         headers: _headers,
       );
 
@@ -892,16 +1537,16 @@ class BaserowService {
     }
   }
 
-  // Buscar novelas (busca por "Novela" e "Novelas" e combina resultados)
+  // Buscar novelas (busca por "Series | Novelas" e "Novelas" e combina resultados)
   Future<List<TVShow>> getNovelas() async {
     try {
       final Set<int> addedIds = {};
       final List<TVShow> allNovelas = [];
 
-      // Busca por "Novela" (singular)
+      // Busca por "Series | Novelas" (formato padrão, sem acento)
       final response1 = await http.get(
         Uri.parse(
-            '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=Novela&filter__Tipo__equal=Séries&size=10'),
+            '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=Series | Novelas&size=15'),
         headers: _headers,
       );
 
@@ -917,10 +1562,10 @@ class BaserowService {
         }
       }
 
-      // Busca por "Novelas" (plural) - pode ter registros diferentes
+      // Busca por "Novelas" (formato alternativo) - pode ter registros diferentes
       final response2 = await http.get(
         Uri.parse(
-            '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=Novelas&filter__Tipo__equal=Séries&size=10'),
+            '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=Novelas&size=15'),
         headers: _headers,
       );
 

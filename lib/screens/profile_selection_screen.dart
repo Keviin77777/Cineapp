@@ -250,147 +250,161 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
           SafeArea(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : Column(
-                    children: [
-                      // Header
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            ShaderMask(
-                              shaderCallback: (bounds) => LinearGradient(
-                                colors: [
-                                  Colors.white,
-                                  Colors.white.withOpacity(0.8),
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Header
+                              Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    ShaderMask(
+                                      shaderCallback: (bounds) => LinearGradient(
+                                        colors: [
+                                          Colors.white,
+                                          Colors.white.withOpacity(0.8),
+                                        ],
+                                      ).createShader(bounds),
+                                      child: const Text(
+                                        'CINEMAX',
+                                        style: TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 3,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Colors.white.withOpacity(0.1),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.2),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: IconButton(
+                                        icon: const Icon(Icons.settings_outlined),
+                                        onPressed: () {},
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Conteúdo central
+                              Column(
+                                children: [
+                                  // Título com animação
+                                  AnimatedBuilder(
+                                    animation: _floatingController,
+                                    builder: (context, child) {
+                                      return Transform.translate(
+                                        offset: Offset(
+                                            0,
+                                            math.sin(_floatingController.value * 2 *
+                                                    math.pi) *
+                                                5),
+                                        child: child,
+                                      );
+                                    },
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          'Bem-vindo de volta!',
+                                          style: TextStyle(
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.bold,
+                                            foreground: Paint()
+                                              ..shader = LinearGradient(
+                                                colors: [
+                                                  Colors.white,
+                                                  Colors.white.withOpacity(0.7),
+                                                ],
+                                              ).createShader(
+                                                  const Rect.fromLTWH(0, 0, 200, 70)),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Escolha seu perfil para continuar',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.white.withOpacity(0.6),
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 40),
+
+                                  // Carrossel de perfis
+                                  if (_profiles.isEmpty)
+                                    _buildEmptyState()
+                                  else
+                                    SizedBox(
+                                      height: 200,
+                                      child: PageView.builder(
+                                        controller: _profilePageController,
+                                        itemCount: _profiles.length + 1,
+                                        onPageChanged: (index) {
+                                          setState(() {
+                                            _currentProfileIndex = index;
+                                          });
+                                        },
+                                        itemBuilder: (context, index) {
+                                          if (index == _profiles.length) {
+                                            return _buildAddProfileCard3D(index);
+                                          }
+                                          return _buildProfileCard3D(
+                                              _profiles[index], index);
+                                        },
+                                      ),
+                                    ),
+
+                                  const SizedBox(height: 25),
+
+                                  // Indicadores
+                                  if (_profiles.isNotEmpty)
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: List.generate(
+                                        _profiles.length + 1,
+                                        (index) => AnimatedContainer(
+                                          duration: const Duration(milliseconds: 300),
+                                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                                          width: _currentProfileIndex == index ? 24 : 8,
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(4),
+                                            color: _currentProfileIndex == index
+                                                ? Colors.white
+                                                : Colors.white.withOpacity(0.3),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                 ],
-                              ).createShader(bounds),
-                              child: const Text(
-                                'CINEMAX',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 3,
-                                  color: Colors.white,
-                                ),
                               ),
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withOpacity(0.1),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.2),
-                                  width: 1,
-                                ),
-                              ),
-                              child: IconButton(
-                                icon: const Icon(Icons.settings_outlined),
-                                onPressed: () {},
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
 
-                      const Spacer(),
-
-                      // Título com animação
-                      AnimatedBuilder(
-                        animation: _floatingController,
-                        builder: (context, child) {
-                          return Transform.translate(
-                            offset: Offset(
-                                0,
-                                math.sin(_floatingController.value * 2 *
-                                        math.pi) *
-                                    5),
-                            child: child,
-                          );
-                        },
-                        child: Column(
-                          children: [
-                            Text(
-                              'Bem-vindo de volta!',
-                              style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                foreground: Paint()
-                                  ..shader = LinearGradient(
-                                    colors: [
-                                      Colors.white,
-                                      Colors.white.withOpacity(0.7),
-                                    ],
-                                  ).createShader(
-                                      const Rect.fromLTWH(0, 0, 200, 70)),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Escolha seu perfil para continuar',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white.withOpacity(0.6),
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 40),
-
-                      // Carrossel de perfis
-                      if (_profiles.isEmpty)
-                        _buildEmptyState()
-                      else
-                        SizedBox(
-                          height: 200,
-                          child: PageView.builder(
-                            controller: _profilePageController,
-                            itemCount: _profiles.length + 1,
-                            onPageChanged: (index) {
-                              setState(() {
-                                _currentProfileIndex = index;
-                              });
-                            },
-                            itemBuilder: (context, index) {
-                              if (index == _profiles.length) {
-                                return _buildAddProfileCard3D(index);
-                              }
-                              return _buildProfileCard3D(
-                                  _profiles[index], index);
-                            },
+                              const SizedBox(height: 40),
+                            ],
                           ),
                         ),
-
-                      const SizedBox(height: 25),
-
-                      // Indicadores
-                      if (_profiles.isNotEmpty)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(
-                            _profiles.length + 1,
-                            (index) => AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              width: _currentProfileIndex == index ? 24 : 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(4),
-                                color: _currentProfileIndex == index
-                                    ? Colors.white
-                                    : Colors.white.withOpacity(0.3),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                      const Spacer(),
-                      const SizedBox(height: 40),
-                    ],
+                      );
+                    },
                   ),
           ),
         ],
