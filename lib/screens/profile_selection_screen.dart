@@ -134,7 +134,10 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
 
   Future<void> _loadProfiles() async {
     final prefs = await SharedPreferences.getInstance();
-    final profilesJson = prefs.getStringList('profiles') ?? [];
+    final userId = prefs.getInt('userId') ?? 0;
+    
+    // Carrega perfis vinculados ao usuário atual
+    final profilesJson = prefs.getStringList('profiles_$userId') ?? [];
 
     setState(() {
       _profiles = profilesJson

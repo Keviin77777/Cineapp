@@ -451,10 +451,26 @@ class BaserowService {
   }
 
   // Buscar filmes por gênero/categoria
+  // Formato da categoria no Baserow: "Filmes | Acao", "Filmes | Comedia", etc.
   Future<List<Movie>> getMoviesByGenre(String genre) async {
     try {
+      // Mapeia o nome do gênero para o formato do Baserow
+      final Map<String, String> genreMapping = {
+        'Ação': 'Filmes | Acao',
+        'Comédia': 'Filmes | Comedia',
+        'Suspense': 'Filmes | Suspense',
+        'Ficção': 'Filmes | Ficcao',
+        'Romance': 'Filmes | Romance',
+        'Família': 'Filmes | Família',
+        'Terror': 'Filmes | Terror',
+        'Drama': 'Filmes | Drama',
+        'Aventura': 'Filmes | Aventura',
+      };
+      
+      final searchTerm = genreMapping[genre] ?? 'Filmes | $genre';
+      
       final response = await http.get(
-        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$genre&filter__Tipo__equal=Filmes&size=10'),
+        Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$searchTerm&size=10'),
         headers: _headers,
       );
 
@@ -944,5 +960,173 @@ class BaserowService {
     }
     
     return imagePath;
+  }
+
+  // ==================== AUTENTICAÇÃO ====================
+
+  // Login do usuário
+  Future<Map<String, dynamic>> login(String email, String senha) async {
+    try {
+      // Busca usuário pelo email
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_usersTableId/?user_field_names=true&filter__Email__equal=$email'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        
+        if (results.isEmpty) {
+          return {'success': false, 'message': 'Email não encontrado'};
+        }
+
+        final user = results.first;
+        final storedPassword = user['Senha']?.toString() ?? '';
+        
+        if (storedPassword == senha) {
+          return {
+            'success': true,
+            'user': {
+              'id': user['id'],
+              'nome': user['Nome'] ?? '',
+              'email': user['Email'] ?? '',
+              'dias': _parseInt(user['Dias']),
+              'restam': _parseInt(user['Restam']),
+            }
+          };
+        } else {
+          return {'success': false, 'message': 'Senha incorreta'};
+        }
+      }
+      return {'success': false, 'message': 'Erro ao conectar com o servidor'};
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
+  }
+
+  // Criar nova conta
+  Future<Map<String, dynamic>> createAccount(String nome, String email, String senha) async {
+    try {
+      // Verifica se email já existe
+      final checkResponse = await http.get(
+        Uri.parse('$_baseUrl/$_usersTableId/?user_field_names=true&filter__Email__equal=$email'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 10));
+
+      if (checkResponse.statusCode == 200) {
+        final checkData = json.decode(checkResponse.body);
+        final List existingUsers = checkData['results'] ?? [];
+        
+        if (existingUsers.isNotEmpty) {
+          // Email já existe - faz login automático se a senha bater
+          final existingUser = existingUsers.first;
+          final storedPassword = existingUser['Senha']?.toString() ?? '';
+          
+          if (storedPassword == senha) {
+            // Senha correta - retorna sucesso (login automático)
+            return {
+              'success': true,
+              'user': {
+                'id': existingUser['id'],
+                'nome': existingUser['Nome'] ?? nome,
+                'email': existingUser['Email'] ?? email,
+                'dias': _parseInt(existingUser['Dias']),
+                'restam': _parseInt(existingUser['Restam']),
+              }
+            };
+          }
+          return {'success': false, 'message': 'Este email já está cadastrado'};
+        }
+      }
+
+      // Cria o novo usuário com 1 dia de teste
+      // Calcula a data de vencimento (hoje + dias)
+      final hoje = DateTime.now();
+      final pagamento = hoje.add(const Duration(days: 1));
+      final pagamentoStr = '${pagamento.year}-${pagamento.month.toString().padLeft(2, '0')}-${pagamento.day.toString().padLeft(2, '0')}';
+      
+      // Nota: "Restam" é uma fórmula no Baserow, não enviamos
+      final response = await http.post(
+        Uri.parse('$_baseUrl/$_usersTableId/?user_field_names=true'),
+        headers: _headers,
+        body: json.encode({
+          'Nome': nome,
+          'Email': email,
+          'Senha': senha,
+          'Dias': 1,
+          'Pagamento': pagamentoStr,
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final userData = json.decode(response.body);
+        return {
+          'success': true,
+          'user': {
+            'id': userData['id'],
+            'nome': userData['Nome'] ?? nome,
+            'email': userData['Email'] ?? email,
+            'dias': userData['Dias'] ?? 1,
+            'restam': userData['Restam'] ?? 1,
+          }
+        };
+      }
+      return {'success': false, 'message': 'Erro ao criar conta. Código: ${response.statusCode}'};
+    } catch (e) {
+      // Se deu timeout ou erro, verifica se a conta foi criada mesmo assim
+      // Aguarda um pouco mais para o servidor processar
+      await Future.delayed(const Duration(seconds: 2));
+      
+      try {
+        final verifyResponse = await http.get(
+          Uri.parse('$_baseUrl/$_usersTableId/?user_field_names=true&filter__Email__equal=$email'),
+          headers: _headers,
+        ).timeout(const Duration(seconds: 15));
+        
+        if (verifyResponse.statusCode == 200) {
+          final verifyData = json.decode(verifyResponse.body);
+          final List users = verifyData['results'] ?? [];
+          
+          if (users.isNotEmpty) {
+            // Conta foi criada! Retorna sucesso
+            final user = users.first;
+            return {
+              'success': true,
+              'user': {
+                'id': user['id'],
+                'nome': user['Nome'] ?? nome,
+                'email': user['Email'] ?? email,
+                'dias': _parseInt(user['Dias']),
+                'restam': _parseInt(user['Restam']),
+              }
+            };
+          }
+        }
+      } catch (verifyError) {
+        // Verificação também falhou - problema de rede real
+      }
+      
+      return {'success': false, 'message': 'Erro de conexão. Tente novamente.'};
+    }
+  }
+
+  // Verificar se email existe
+  Future<bool> emailExists(String email) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_usersTableId/?user_field_names=true&filter__Email__equal=$email'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        return results.isNotEmpty;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
   }
 }

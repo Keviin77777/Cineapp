@@ -1,15 +1,23 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'profile_selection_screen.dart';
+import 'login_screen.dart';
 import '../services/tmdb_service.dart';
 import '../models/movie.dart';
 import '../models/tv_show.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  final List<Movie>? preloadedMovies;
+  final List<TVShow>? preloadedTVShows;
+  
+  const OnboardingScreen({
+    super.key,
+    this.preloadedMovies,
+    this.preloadedTVShows,
+  });
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -27,7 +35,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    _loadTrendingContent();
+    _initContent();
+  }
+
+  void _initContent() {
+    // Usar dados pré-carregados se disponíveis
+    if (widget.preloadedMovies != null && widget.preloadedTVShows != null) {
+      setState(() {
+        _trendingMovies = widget.preloadedMovies!.take(6).toList();
+        _trendingTVShows = widget.preloadedTVShows!.take(6).toList();
+        _isLoading = false;
+      });
+    } else {
+      _loadTrendingContent();
+    }
   }
 
   Future<void> _loadTrendingContent() async {
@@ -85,13 +106,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!mounted) return;
     
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const ProfileSelectionScreen()),
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Status bar transparente
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ));
+    
     return Scaffold(
+      extendBodyBehindAppBar: true,
       body: Stack(
         children: [
           // PageView com fundo em tela cheia
@@ -112,27 +140,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     return _buildPage(_pages[index]);
                   },
                 ),
-          // Header com título e botão pular
+          // Header com botão pular
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  const Text(
-                    'CINEMAX',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.5,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black,
-                          blurRadius: 10,
-                        ),
-                      ],
-                    ),
-                  ),
                   if (_currentPage < _pages.length - 1)
                     TextButton(
                       onPressed: _completeOnboarding,
@@ -269,11 +283,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: CachedNetworkImage(
               imageUrl: TMDBService.getOriginalImageUrl(backdropPath),
               fit: BoxFit.cover,
+              fadeInDuration: Duration.zero,
+              fadeOutDuration: Duration.zero,
               placeholder: (context, url) => Container(
-                color: Theme.of(context).scaffoldBackgroundColor,
+                color: Colors.black,
               ),
               errorWidget: (context, url, error) => Container(
-                color: Theme.of(context).scaffoldBackgroundColor,
+                color: Colors.black,
               ),
             ),
           ),
@@ -435,15 +451,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 fit: BoxFit.cover,
                 width: width,
                 height: height,
+                fadeInDuration: Duration.zero,
+                fadeOutDuration: Duration.zero,
                 placeholder: (context, url) => Container(
-                  color: Colors.grey[800],
-                  child: const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+                  color: Colors.grey[900],
                 ),
                 errorWidget: (context, url, error) => Container(
-                  color: Colors.grey[800],
-                  child: const Icon(Icons.movie, size: 30),
+                  color: Colors.grey[900],
                 ),
               ),
               // Borda com gradiente sutil

@@ -113,9 +113,12 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     );
 
     final prefs = await SharedPreferences.getInstance();
-    final profilesJson = prefs.getStringList('profiles') ?? [];
+    final userId = prefs.getInt('userId') ?? 0;
+    
+    // Salva perfis vinculados ao usuário atual
+    final profilesJson = prefs.getStringList('profiles_$userId') ?? [];
     profilesJson.add(jsonEncode(profile.toJson()));
-    await prefs.setStringList('profiles', profilesJson);
+    await prefs.setStringList('profiles_$userId', profilesJson);
 
     if (!mounted) return;
     Navigator.of(context).pop();

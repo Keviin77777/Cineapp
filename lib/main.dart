@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'screens/onboarding_screen.dart';
-import 'screens/profile_selection_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/tv_show_detail_screen.dart';
 
 void main() {
@@ -29,69 +27,7 @@ class CinemaxApp extends StatelessWidget {
         fontFamily: 'Poppins',
       ),
       navigatorObservers: [tvShowRouteObserver],
-      home: const SplashDecider(),
-    );
-  }
-}
-
-class SplashDecider extends StatefulWidget {
-  const SplashDecider({super.key});
-
-  @override
-  State<SplashDecider> createState() => _SplashDeciderState();
-}
-
-class _SplashDeciderState extends State<SplashDecider> {
-  @override
-  void initState() {
-    super.initState();
-    _checkFirstTime();
-  }
-
-  Future<void> _checkFirstTime() async {
-    final prefs = await SharedPreferences.getInstance();
-    final hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
-
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (!mounted) return;
-
-    if (hasSeenOnboarding) {
-      // Sempre vai para seleção de perfil
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const ProfileSelectionScreen()),
-      );
-    } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.movie_filter,
-              size: 80,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'CINEMAX',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-              ),
-            ),
-          ],
-        ),
-      ),
+      home: const SplashScreen(),
     );
   }
 }
