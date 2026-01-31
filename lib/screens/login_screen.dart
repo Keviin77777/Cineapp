@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../services/baserow_service.dart';
+import '../services/favorites_service.dart';
+import '../services/watch_progress_service.dart';
 import 'profile_selection_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -18,6 +21,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final _nameController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _baserowService = BaserowService();
+  final _favoritesService = FavoritesService();
+  final _watchProgressService = WatchProgressService();
   
   bool _isLogin = true;
   bool _isLoading = false;
@@ -107,6 +112,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         await prefs.setString('userPassword', _passwordController.text);
         await prefs.setInt('userDias', result['user']['dias'] ?? 0);
         await prefs.setInt('userRestam', result['user']['restam'] ?? 0);
+        
+        // Salva dados do usuário para sincronização
+        await prefs.setString('currentUser', json.encode(result['user']));
+
+        // Carrega dados do Baserow (favoritos, minha lista, progresso)
+        try {
+          await _favoritesService.loadFromBaserow();
+          await _watchProgressService.loadFromBaserow();
+        } catch (e) {
+          print('Erro ao carregar dados do usuário: $e');
+        }
 
         if (!mounted) return;
 
@@ -131,6 +147,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           await prefs.setString('userName', loginResult['user']['nome']);
           await prefs.setString('userEmail', loginResult['user']['email']);
           await prefs.setString('userPassword', _passwordController.text);
+          
+          // Salva dados do usuário para sincronização
+          await prefs.setString('currentUser', json.encode(loginResult['user']));
+          
+          // Carrega dados do Baserow
+          try {
+            await _favoritesService.loadFromBaserow();
+            await _watchProgressService.loadFromBaserow();
+          } catch (e) {
+            print('Erro ao carregar dados do usuário: $e');
+          }
           
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const ProfileSelectionScreen()),
@@ -386,7 +413,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         hintText: label,
         hintStyle: TextStyle(color: Colors.grey[400]),
         floatingLabelBehavior: FloatingLabelBehavior.never,
-        prefixIcon: Icon(icon, color: const Color(0xFF12CDD9)),
+        prefixIcon: Icon(icon, color: const Color(0xFF7C4DFF)),
         suffixIcon: suffixIcon,
         filled: true,
         fillColor: const Color(0xFF252836),
@@ -431,7 +458,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       child: ElevatedButton(
         onPressed: _isLoading ? null : _handleSubmit,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF12CDD9),
+          backgroundColor: const Color(0xFF7C4DFF),
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -485,3 +512,4 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 }
+

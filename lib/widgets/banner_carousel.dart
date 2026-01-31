@@ -91,7 +91,7 @@ class _BannerCarouselState extends State<BannerCarousel> {
               decoration: BoxDecoration(
                 color: _currentPage == index
                     ? Theme.of(context).colorScheme.primary
-                    : Colors.grey[700],
+                    : const Color(0xFF1C2030),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -141,7 +141,7 @@ class _BannerCarouselState extends State<BannerCarousel> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
+                  color: const Color(0xFF0E0F12).withOpacity(0.4),
                   blurRadius: 10,
                   offset: const Offset(0, 5),
                 ),
@@ -156,10 +156,10 @@ class _BannerCarouselState extends State<BannerCarousel> {
                     imageUrl: BaserowService.getImageUrl(movie.backdropPath),
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
-                      color: Colors.grey[800],
+                      color: const Color(0xFF151820),
                     ),
                   ),
-                  // Gradiente inferior - mais forte com blur
+                  // Gradiente inferior - mais escuro para melhor legibilidade
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -167,30 +167,30 @@ class _BannerCarouselState extends State<BannerCarousel> {
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withOpacity(0.5),
-                          Colors.black.withOpacity(0.95),
+                          const Color(0xFF0E0F12).withOpacity(0.6),
+                          const Color(0xFF0E0F12).withOpacity(0.98),
                         ],
-                        stops: const [0.0, 0.5, 1.0],
+                        stops: const [0.0, 0.4, 1.0],
                       ),
                     ),
                   ),
-                  // Botão de Play no centro - translúcido
+                  // Botão de Play no centro - mais discreto
                   Center(
                     child: Container(
-                      width: 65,
-                      height: 65,
+                      width: 60,
+                      height: 60,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withOpacity(0.15),
                         border: Border.all(
-                          color: Colors.white,
-                          width: 3,
+                          color: Colors.white.withOpacity(0.6),
+                          width: 2,
                         ),
                       ),
                       child: const Icon(
                         Icons.play_arrow,
                         color: Colors.white,
-                        size: 38,
+                        size: 34,
                       ),
                     ),
                   ),
@@ -208,6 +208,18 @@ class _BannerCarouselState extends State<BannerCarousel> {
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black,
+                                blurRadius: 10,
+                                offset: Offset(0, 2),
+                              ),
+                              Shadow(
+                                color: Colors.black,
+                                blurRadius: 20,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -215,10 +227,17 @@ class _BannerCarouselState extends State<BannerCarousel> {
                         const SizedBox(height: 3),
                         Text(
                           movie.overview,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 11,
-                            color: Colors.grey[400],
+                            color: Color(0xFFB0B3C6),
                             height: 1.3,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black,
+                                blurRadius: 4,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -235,3 +254,13 @@ class _BannerCarouselState extends State<BannerCarousel> {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

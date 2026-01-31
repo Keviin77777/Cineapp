@@ -46,13 +46,13 @@ class FeaturedMovieCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
-            color: Colors.grey[700]!.withOpacity(0.5),
+            color: const Color(0xFF1C2030)!.withOpacity(0.5),
             width: 1,
           ),
           // Sombra Netflix: blur alto, offset vertical, opacidade forte
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.55),
+              color: const Color(0xFF0E0F12).withOpacity(0.55),
               blurRadius: 24,
               offset: const Offset(0, 12),
             ),
@@ -71,13 +71,13 @@ class FeaturedMovieCard extends StatelessWidget {
                   fit: BoxFit.cover,
                   filterQuality: FilterQuality.high,
                   placeholder: (context, url) => Container(
-                    color: Colors.grey[800],
+                    color: const Color(0xFF151820),
                     child: const Center(
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   ),
                   errorWidget: (context, url, error) => Container(
-                    color: Colors.grey[800],
+                    color: const Color(0xFF151820),
                     child: const Icon(Icons.movie, size: 40),
                   ),
                 ),
@@ -174,13 +174,13 @@ class FeaturedTVShowCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
-            color: Colors.grey[700]!.withOpacity(0.5),
+            color: const Color(0xFF1C2030)!.withOpacity(0.5),
             width: 1,
           ),
           // Sombra Netflix: blur alto, offset vertical, opacidade forte
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.55),
+              color: const Color(0xFF0E0F12).withOpacity(0.55),
               blurRadius: 24,
               offset: const Offset(0, 12),
             ),
@@ -199,13 +199,13 @@ class FeaturedTVShowCard extends StatelessWidget {
                   fit: BoxFit.cover,
                   filterQuality: FilterQuality.high,
                   placeholder: (context, url) => Container(
-                    color: Colors.grey[800],
+                    color: const Color(0xFF151820),
                     child: const Center(
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   ),
                   errorWidget: (context, url, error) => Container(
-                    color: Colors.grey[800],
+                    color: const Color(0xFF151820),
                     child: const Icon(Icons.tv, size: 40),
                   ),
                 ),
@@ -269,3 +269,13 @@ class FeaturedTVShowCard extends StatelessWidget {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

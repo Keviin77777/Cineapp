@@ -494,3 +494,4 @@ class OnboardingPage {
     required this.type,
   });
 }
+

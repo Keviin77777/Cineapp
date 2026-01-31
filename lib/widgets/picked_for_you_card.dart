@@ -38,12 +38,12 @@ class PickedForYouCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
-            color: Colors.grey[700]!.withOpacity(0.5),
+            color: const Color(0xFF1C2030)!.withOpacity(0.5),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.4),
+              color: const Color(0xFF0E0F12).withOpacity(0.4),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -58,13 +58,13 @@ class PickedForYouCard extends StatelessWidget {
                 imageUrl: imageUrl,
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
-                  color: Colors.grey[800],
+                  color: const Color(0xFF151820),
                   child: const Center(
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ),
                 errorWidget: (context, url, error) => Container(
-                  color: Colors.grey[800],
+                  color: const Color(0xFF151820),
                   child: const Icon(Icons.movie, size: 40),
                 ),
               ),
@@ -76,8 +76,8 @@ class PickedForYouCard extends StatelessWidget {
                     stops: const [0.5, 0.8, 1.0],
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.5),
-                      Colors.black.withOpacity(0.85),
+                      const Color(0xFF0E0F12).withOpacity(0.5),
+                      const Color(0xFF0E0F12).withOpacity(0.85),
                     ],
                   ),
                 ),
@@ -90,7 +90,7 @@ class PickedForYouCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
+                      color: const Color(0xFF0E0F12).withOpacity(0.7),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(
@@ -122,7 +122,7 @@ class PickedForYouCard extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     shadows: [
-                      Shadow(color: Colors.black, blurRadius: 4),
+                      Shadow(color: const Color(0xFF0E0F12), blurRadius: 4),
                     ],
                   ),
                   maxLines: 2,
@@ -136,3 +136,13 @@ class PickedForYouCard extends StatelessWidget {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

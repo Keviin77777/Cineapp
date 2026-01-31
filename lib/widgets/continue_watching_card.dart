@@ -21,7 +21,7 @@ class ContinueWatchingCard extends StatelessWidget {
   void _showRemoveDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey[900],
+      backgroundColor: const Color(0xFF151820),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -34,7 +34,7 @@ class ContinueWatchingCard extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[600],
+                color: const Color(0xFF6F7385),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -103,9 +103,10 @@ class ContinueWatchingCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 8,
+              color: Colors.black.withOpacity(0.4),
+              blurRadius: 10,
               offset: const Offset(0, 4),
+              spreadRadius: -2,
             ),
           ],
         ),
@@ -120,9 +121,9 @@ class ContinueWatchingCard extends StatelessWidget {
                   progress.backdropPath ?? progress.posterPath,
                 ),
                 fit: BoxFit.cover,
-                placeholder: (context, url) => Container(color: Colors.grey[800]),
+                placeholder: (context, url) => Container(color: const Color(0xFF151820)),
                 errorWidget: (context, url, error) => Container(
-                  color: Colors.grey[800],
+                  color: const Color(0xFF151820),
                   child: const Icon(Icons.movie, size: 40, color: Colors.white54),
                 ),
               ),
@@ -134,8 +135,8 @@ class ContinueWatchingCard extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.4),
-                      Colors.black.withOpacity(0.95),
+                      const Color(0xFF0E0F12).withOpacity(0.4),
+                      const Color(0xFF0E0F12).withOpacity(0.95),
                     ],
                     stops: const [0.0, 0.5, 1.0],
                   ),
@@ -163,7 +164,7 @@ class ContinueWatchingCard extends StatelessWidget {
                     if (progress.seasonNumber != null && progress.episodeNumber != null)
                       Text(
                         'T${progress.seasonNumber} E${progress.episodeNumber}',
-                        style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                        style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 11),
                         textAlign: TextAlign.center,
                       ),
                   ],
@@ -196,7 +197,7 @@ class ContinueWatchingCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(2),
                           child: LinearProgressIndicator(
                             value: progress.progress,
-                            backgroundColor: Colors.grey[700],
+                            backgroundColor: const Color(0xFF1C2030),
                             valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE50914)),
                             minHeight: 3,
                           ),
@@ -205,7 +206,7 @@ class ContinueWatchingCard extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         progress.formattedDuration,
-                        style: TextStyle(color: Colors.grey[500], fontSize: 9, fontWeight: FontWeight.w500),
+                        style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 9, fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
@@ -218,3 +219,13 @@ class ContinueWatchingCard extends StatelessWidget {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

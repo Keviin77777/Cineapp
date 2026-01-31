@@ -142,7 +142,7 @@ class _EpisodesModalState extends State<EpisodesModal> {
             child: GestureDetector(
               onTap: () => Navigator.pop(context),
               child: Container(
-                color: Colors.black.withOpacity(0.85),
+                color: const Color(0xFF0E0F12).withOpacity(0.85),
               ),
             ),
           ),
@@ -161,7 +161,7 @@ class _EpisodesModalState extends State<EpisodesModal> {
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.close, color: Colors.white, size: 28),
                           style: IconButton.styleFrom(
-                            backgroundColor: Colors.black.withOpacity(0.5),
+                            backgroundColor: const Color(0xFF0E0F12).withOpacity(0.5),
                           ),
                         ),
                         const Spacer(),
@@ -178,12 +178,12 @@ class _EpisodesModalState extends State<EpisodesModal> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.filter_list, size: 18, color: Colors.black),
+                                  const Icon(Icons.filter_list, size: 18, color: const Color(0xFF0E0F12)),
                                   const SizedBox(width: 8),
                                   Text(
                                     widget.tvShowName,
                                     style: const TextStyle(
-                                      color: Colors.black,
+                                      color: const Color(0xFF0E0F12),
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -234,7 +234,7 @@ class _EpisodesModalState extends State<EpisodesModal> {
   void _showSeasonPicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey[900],
+      backgroundColor: const Color(0xFF151820),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -252,7 +252,7 @@ class _EpisodesModalState extends State<EpisodesModal> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[600],
+                  color: const Color(0xFF6F7385),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -276,19 +276,19 @@ class _EpisodesModalState extends State<EpisodesModal> {
                     children: _availableSeasons.map((season) => ListTile(
                       leading: Icon(
                         _selectedSeason == season ? Icons.check_circle : Icons.circle_outlined,
-                        color: _selectedSeason == season ? const Color(0xFF12CDD9) : Colors.grey,
+                        color: _selectedSeason == season ? const Color(0xFF7C4DFF) : Colors.grey,
                       ),
                       title: Text(
                         'Temporada $season',
                         style: TextStyle(
-                          color: _selectedSeason == season ? const Color(0xFF12CDD9) : Colors.white,
+                          color: _selectedSeason == season ? const Color(0xFF7C4DFF) : Colors.white,
                           fontWeight: _selectedSeason == season ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
                       trailing: Text(
                         '${(_episodesBySeason[season] ?? []).length} eps',
                         style: TextStyle(
-                          color: Colors.grey[300],
+                          color: const Color(0xFFB0B3C6),
                           fontSize: 12,
                         ),
                       ),
@@ -323,7 +323,7 @@ class _EpisodesModalState extends State<EpisodesModal> {
             Container(
               height: 170,
               decoration: BoxDecoration(
-                color: Colors.grey[800]?.withOpacity(0.3),
+                color: const Color(0xFF151820)?.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
@@ -332,7 +332,7 @@ class _EpisodesModalState extends State<EpisodesModal> {
               height: 16,
               width: 220,
               decoration: BoxDecoration(
-                color: Colors.grey[800]?.withOpacity(0.3),
+                color: const Color(0xFF151820)?.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -341,7 +341,7 @@ class _EpisodesModalState extends State<EpisodesModal> {
               height: 12,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Colors.grey[800]?.withOpacity(0.3),
+                color: const Color(0xFF151820)?.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -356,11 +356,11 @@ class _EpisodesModalState extends State<EpisodesModal> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.video_library_outlined, size: 60, color: Colors.grey[600]),
+          Icon(Icons.video_library_outlined, size: 60, color: const Color(0xFF6F7385)),
           const SizedBox(height: 16),
           Text(
             'Nenhum episódio disponível',
-            style: TextStyle(color: Colors.grey[300], fontSize: 16),
+            style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 16),
           ),
         ],
       ),
@@ -413,13 +413,13 @@ class _EpisodesModalState extends State<EpisodesModal> {
                             imageUrl: imageUrl,
                             fit: BoxFit.cover,
                             placeholder: (context, url) => Container(
-                              color: Colors.grey[800]?.withOpacity(0.3),
+                              color: const Color(0xFF151820)?.withOpacity(0.3),
                               child: const Center(
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               ),
                             ),
                             errorWidget: (context, url, error) => Container(
-                              color: Colors.grey[800]?.withOpacity(0.3),
+                              color: const Color(0xFF151820)?.withOpacity(0.3),
                               child: const Icon(
                                 Icons.play_circle_outline,
                                 size: 50,
@@ -428,7 +428,7 @@ class _EpisodesModalState extends State<EpisodesModal> {
                             ),
                           )
                         : Container(
-                            color: Colors.grey[800]?.withOpacity(0.3),
+                            color: const Color(0xFF151820)?.withOpacity(0.3),
                             child: const Center(
                               child: Icon(
                                 Icons.play_circle_outline,
@@ -447,7 +447,7 @@ class _EpisodesModalState extends State<EpisodesModal> {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withOpacity(0.7),
+                            const Color(0xFF0E0F12).withOpacity(0.7),
                           ],
                         ),
                       ),
@@ -460,13 +460,13 @@ class _EpisodesModalState extends State<EpisodesModal> {
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.6),
+                            color: const Color(0xFF0E0F12).withOpacity(0.6),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Icons.play_arrow,
                             size: 40,
-                            color: isCurrentEpisode ? const Color(0xFF12CDD9) : Colors.white,
+                            color: isCurrentEpisode ? const Color(0xFF7C4DFF) : Colors.white,
                           ),
                         ),
                       ),
@@ -479,13 +479,13 @@ class _EpisodesModalState extends State<EpisodesModal> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF12CDD9),
+                          color: const Color(0xFF7C4DFF),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           '${runtime}min',
                           style: const TextStyle(
-                            color: Colors.black,
+                            color: const Color(0xFF0E0F12),
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
@@ -500,13 +500,13 @@ class _EpisodesModalState extends State<EpisodesModal> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF12CDD9),
+                          color: const Color(0xFF7C4DFF),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: const Text(
                           'ASSISTINDO',
                           style: TextStyle(
-                            color: Colors.black,
+                            color: const Color(0xFF0E0F12),
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
@@ -517,17 +517,17 @@ class _EpisodesModalState extends State<EpisodesModal> {
                   if (link.isEmpty)
                     Positioned.fill(
                       child: Container(
-                        color: Colors.black.withOpacity(0.7),
+                        color: const Color(0xFF0E0F12).withOpacity(0.7),
                         child: Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.lock_outline, color: Colors.grey[400], size: 40),
+                              Icon(Icons.lock_outline, color: const Color(0xFFB0B3C6), size: 40),
                               const SizedBox(height: 8),
                               Text(
                                 'Indisponível',
                                 style: TextStyle(
-                                  color: Colors.grey[400],
+                                  color: const Color(0xFFB0B3C6),
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -547,7 +547,7 @@ class _EpisodesModalState extends State<EpisodesModal> {
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
-                color: isCurrentEpisode ? const Color(0xFF12CDD9) : Colors.white,
+                color: isCurrentEpisode ? const Color(0xFF7C4DFF) : Colors.white,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -559,7 +559,7 @@ class _EpisodesModalState extends State<EpisodesModal> {
                 overview,
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey[400],
+                  color: const Color(0xFFB0B3C6),
                   height: 1.3,
                 ),
                 maxLines: 2,
@@ -572,3 +572,13 @@ class _EpisodesModalState extends State<EpisodesModal> {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

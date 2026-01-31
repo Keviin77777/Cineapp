@@ -29,7 +29,7 @@ class TrendingCarousel extends StatelessWidget {
               ),
               Icon(
                 Icons.arrow_forward_ios,
-                color: Colors.grey[400],
+                color: const Color(0xFFB0B3C6),
                 size: 20,
               ),
             ],
@@ -75,7 +75,7 @@ class TrendingCarousel extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: const Color(0xFF0E0F12).withOpacity(0.3),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -90,7 +90,7 @@ class TrendingCarousel extends StatelessWidget {
                 imageUrl: BaserowService.getImageUrl(movie.backdropPath),
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
-                  color: Colors.grey[800],
+                  color: const Color(0xFF151820),
                 ),
               ),
               // Gradiente inferior
@@ -102,7 +102,7 @@ class TrendingCarousel extends StatelessWidget {
                     colors: [
                       Colors.transparent,
                       Colors.transparent,
-                      Colors.black.withOpacity(0.8),
+                      const Color(0xFF0E0F12).withOpacity(0.8),
                     ],
                     stops: const [0.0, 0.4, 1.0],
                   ),
@@ -119,7 +119,7 @@ class TrendingCarousel extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
+                      color: const Color(0xFF0E0F12).withOpacity(0.6),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(
@@ -202,3 +202,13 @@ class TrendingCarousel extends StatelessWidget {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

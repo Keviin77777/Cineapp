@@ -53,7 +53,7 @@ class Top10TVCard extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                       fontFamily: 'Arial',
                       height: 0.8,
-                      color: Colors.black.withOpacity(0.8),
+                      color: const Color(0xFF0E0F12).withOpacity(0.8),
                     ),
                   ),
                   // Contorno do número (stroke) - mais visível
@@ -69,7 +69,7 @@ class Top10TVCard extends StatelessWidget {
                         foreground: Paint()
                           ..style = PaintingStyle.stroke
                           ..strokeWidth = 4
-                          ..color = Colors.grey[500]!,
+                          ..color = const Color(0xFFB0B3C6)!,
                       ),
                     ),
                   ),
@@ -100,14 +100,15 @@ class Top10TVCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: Colors.grey.withOpacity(0.3),
-                    width: 1,
+                    color: Colors.grey.withOpacity(0.15),
+                    width: 0.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.4),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
+                      spreadRadius: -2,
                     ),
                   ],
                 ),
@@ -119,13 +120,13 @@ class Top10TVCard extends StatelessWidget {
                     height: 185,
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
-                      color: Colors.grey[800],
+                      color: const Color(0xFF151820),
                       child: const Center(
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     ),
                     errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[800],
+                      color: const Color(0xFF151820),
                       child: const Icon(Icons.tv, size: 40),
                     ),
                   ),
@@ -138,3 +139,14 @@ class Top10TVCard extends StatelessWidget {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+
+

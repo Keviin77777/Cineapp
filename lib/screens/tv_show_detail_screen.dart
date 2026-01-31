@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/baserow_service.dart';
 import '../services/watch_progress_service.dart';
+import '../services/favorites_service.dart';
 import '../models/tv_show.dart';
 import '../widgets/skeleton_loading.dart';
 import 'video_player_screen.dart';
@@ -33,6 +34,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
     with RouteAware {
   final BaserowService _baserowService = BaserowService();
   final WatchProgressService _watchProgressService = WatchProgressService();
+  final FavoritesService _favoritesService = FavoritesService();
   final ScrollController _episodesScrollController = ScrollController();
   TVShow? _tvShow;
   Map<String, dynamic>? _tmdbData;
@@ -46,12 +48,26 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
   bool _isOverviewExpanded = false;
   int _selectedSeason = 1;
   bool _hasScrolledToEpisode = false;
+  bool _isFavorite = false;
+  bool _isInMyList = false;
 
   @override
   void initState() {
     super.initState();
     _loadTVShowDetails();
     _loadWatchProgress();
+    _loadFavoritesStatus();
+  }
+
+  Future<void> _loadFavoritesStatus() async {
+    final isFav = await _favoritesService.isFavorite(widget.tvShowId, 'tv');
+    final isInList = await _favoritesService.isInMyList(widget.tvShowId, 'tv');
+    if (mounted) {
+      setState(() {
+        _isFavorite = isFav;
+        _isInMyList = isInList;
+      });
+    }
   }
 
   @override
@@ -354,17 +370,17 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                     imageUrl: _getHighQualityImageUrl(imageUrl),
                     fit: BoxFit.cover,
                     errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[900],
+                      color: const Color(0xFF151820),
                       child: const Icon(Icons.tv, size: 80, color: Colors.grey),
                     ),
                   )
                 : Container(
-                    color: Colors.grey[900],
+                    color: const Color(0xFF151820),
                     child: const Center(child: Icon(Icons.tv, size: 80, color: Colors.grey)),
                   ),
           ),
           Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.25)),
+            child: Container(color: const Color(0xFF0E0F12).withOpacity(0.25)),
           ),
           Positioned(
             bottom: 0,
@@ -378,8 +394,8 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(0.5),
-                    Colors.black.withOpacity(0.85),
+                    const Color(0xFF0E0F12).withOpacity(0.5),
+                    const Color(0xFF0E0F12).withOpacity(0.85),
                     Theme.of(context).scaffoldBackgroundColor,
                   ],
                   stops: const [0.0, 0.3, 0.6, 1.0],
@@ -416,24 +432,24 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                       if (_tvShow!.firstAirDate.isNotEmpty)
                         Text(
                           _tvShow!.firstAirDate.split('-')[0],
-                          style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                          style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 14),
                         ),
                       if (_tvShow!.categories != null && _tvShow!.categories!.isNotEmpty) ...[
                         const SizedBox(width: 8),
-                        Container(width: 4, height: 4, decoration: BoxDecoration(color: Colors.grey[400], shape: BoxShape.circle)),
+                        Container(width: 4, height: 4, decoration: BoxDecoration(color: const Color(0xFFB0B3C6), shape: BoxShape.circle)),
                         const SizedBox(width: 8),
                         Text(
                           _tvShow!.categories!.split(',').first.trim(),
-                          style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                          style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 14),
                         ),
                       ],
                       if (_tvShow!.seasons != null && _tvShow!.seasons! > 0) ...[
                         const SizedBox(width: 8),
-                        Container(width: 4, height: 4, decoration: BoxDecoration(color: Colors.grey[400], shape: BoxShape.circle)),
+                        Container(width: 4, height: 4, decoration: BoxDecoration(color: const Color(0xFFB0B3C6), shape: BoxShape.circle)),
                         const SizedBox(width: 8),
                         Text(
                           '${_tvShow!.seasons} Temp.',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                          style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 14),
                         ),
                       ],
                     ],
@@ -450,7 +466,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                       child: Text(
                         overview,
                         style: TextStyle(
-                          color: Colors.grey[300],
+                          color: const Color(0xFFB0B3C6),
                           fontSize: 13,
                           height: 1.5,
                         ),
@@ -465,36 +481,73 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () => _playEpisode(),
-                          icon: const Icon(Icons.play_arrow),
-                          label: Text(_getPlayButtonText()),
+                          icon: const Icon(Icons.play_arrow, size: 22),
+                          label: Text(
+                            _getPlayButtonText(),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE50914),
+                            backgroundColor: const Color(0xFFC62828),
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            elevation: 3,
+                            shadowColor: const Color(0xFFC62828).withOpacity(0.4),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey[800]?.withOpacity(0.6),
+                          color: const Color(0xFF151820)?.withOpacity(0.6),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: IconButton(
-                          onPressed: () {},
-                          icon: const Icon(Icons.list_alt, color: Colors.white),
+                          onPressed: () async {
+                            await _favoritesService.toggleMyList(widget.tvShowId, 'tv');
+                            final isInList = await _favoritesService.isInMyList(widget.tvShowId, 'tv');
+                            setState(() => _isInMyList = isInList);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(isInList ? 'Adicionado à Minha Lista' : 'Removido da Minha Lista'),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          icon: Icon(
+                            _isInMyList ? Icons.bookmark : Icons.bookmark_border,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey[800]?.withOpacity(0.6),
+                          color: const Color(0xFF151820)?.withOpacity(0.6),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: IconButton(
-                          onPressed: () {},
-                          icon: const Icon(Icons.favorite_border, color: Colors.white),
+                          onPressed: () async {
+                            await _favoritesService.toggleFavorite(widget.tvShowId, 'tv');
+                            final isFav = await _favoritesService.isFavorite(widget.tvShowId, 'tv');
+                            setState(() => _isFavorite = isFav);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(isFav ? 'Adicionado aos Favoritos' : 'Removido dos Favoritos'),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          icon: Icon(
+                            _isFavorite ? Icons.favorite : Icons.favorite_border,
+                            color: _isFavorite ? Colors.red : Colors.white,
+                          ),
                         ),
                       ),
                     ],
@@ -568,6 +621,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
             title: _tvShow?.name ?? 'Série',
             episodeNumber: episodeToPlay,
             seasonNumber: seasonToPlay,
+            category: _tvShow?.categories?.split(',').first.trim(),
             contentId: _tvShow?.id,
             tmdbId: _tvShow?.tmdbId,
             posterPath: _tvShow?.posterPath,
@@ -618,9 +672,9 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Colors.grey[850],
+                  color: const Color(0xFF151820),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.grey[700]!, width: 1),
+                  border: Border.all(color: const Color(0xFF1C2030)!, width: 1),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -658,7 +712,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                         Container(
                           height: 150,
                           decoration: BoxDecoration(
-                            color: Colors.grey[800],
+                            color: const Color(0xFF151820),
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
@@ -667,7 +721,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                           height: 12,
                           width: 150,
                           decoration: BoxDecoration(
-                            color: Colors.grey[800],
+                            color: const Color(0xFF151820),
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
@@ -676,7 +730,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                           height: 10,
                           width: 100,
                           decoration: BoxDecoration(
-                            color: Colors.grey[800],
+                            color: const Color(0xFF151820),
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
@@ -690,7 +744,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                         padding: const EdgeInsets.all(20),
                         child: Text(
                           'Nenhum episódio disponível',
-                          style: TextStyle(color: Colors.grey[400]),
+                          style: TextStyle(color: const Color(0xFFB0B3C6)),
                         ),
                       ),
                     )
@@ -713,12 +767,16 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
   void _showSeasonPicker(List<int> seasons) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey[900],
+      backgroundColor: const Color(0xFF151820),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      isScrollControlled: true,
       builder: (context) {
         return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
           padding: const EdgeInsets.symmetric(vertical: 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -727,7 +785,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[600],
+                  color: const Color(0xFF6F7385),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -741,28 +799,35 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                 ),
               ),
               const SizedBox(height: 16),
-              ...seasons.map((season) => ListTile(
-                leading: Icon(
-                  _selectedSeason == season ? Icons.check_circle : Icons.circle_outlined,
-                  color: _selectedSeason == season ? const Color(0xFF12CDD9) : Colors.grey,
-                ),
-                title: Text(
-                  'Temporada $season',
-                  style: TextStyle(
-                    color: _selectedSeason == season ? const Color(0xFF12CDD9) : Colors.white,
-                    fontWeight: _selectedSeason == season ? FontWeight.bold : FontWeight.normal,
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: seasons.map((season) => ListTile(
+                      leading: Icon(
+                        _selectedSeason == season ? Icons.check_circle : Icons.circle_outlined,
+                        color: _selectedSeason == season ? const Color(0xFF7C4DFF) : Colors.grey,
+                      ),
+                      title: Text(
+                        'Temporada $season',
+                        style: TextStyle(
+                          color: _selectedSeason == season ? const Color(0xFF7C4DFF) : Colors.white,
+                          fontWeight: _selectedSeason == season ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      onTap: () {
+                        setState(() => _selectedSeason = season);
+                        Navigator.pop(context);
+                        // Reseta scroll ao mudar de temporada
+                        if (_episodesScrollController.hasClients) {
+                          _episodesScrollController.jumpTo(0);
+                        }
+                      },
+                    )).toList(),
                   ),
                 ),
-                onTap: () {
-                  setState(() => _selectedSeason = season);
-                  Navigator.pop(context);
-                  // Reseta scroll ao mudar de temporada
-                  if (_episodesScrollController.hasClients) {
-                    _episodesScrollController.jumpTo(0);
-                  }
-                },
-              )),
-              const SizedBox(height: 20),
+              ),
+              const SizedBox(height: 12),
             ],
           ),
         );
@@ -799,6 +864,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                 title: _tvShow?.name ?? 'Série',
                 episodeNumber: episodeNumber,
                 seasonNumber: _selectedSeason,
+                category: _tvShow?.categories?.split(',').first.trim(),
                 contentId: _tvShow?.id,
                 tmdbId: _tvShow?.tmdbId,
                 posterPath: _tvShow?.posterPath,
@@ -838,16 +904,16 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                             imageUrl: imageUrl,
                             fit: BoxFit.cover,
                             placeholder: (context, url) => Container(
-                              color: Colors.grey[800],
+                              color: const Color(0xFF151820),
                               child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
                             ),
                             errorWidget: (context, url, error) => Container(
-                              color: Colors.grey[800],
+                              color: const Color(0xFF151820),
                               child: const Icon(Icons.play_circle_outline, size: 40, color: Colors.white54),
                             ),
                           )
                         : Container(
-                            color: Colors.grey[800],
+                            color: const Color(0xFF151820),
                             child: const Center(
                               child: Icon(Icons.play_circle_outline, size: 40, color: Colors.white54),
                             ),
@@ -862,7 +928,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withOpacity(0.5),
+                            const Color(0xFF0E0F12).withOpacity(0.5),
                           ],
                         ),
                       ),
@@ -896,7 +962,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                       right: 0,
                       child: LinearProgressIndicator(
                         value: episodeProgress.progress,
-                        backgroundColor: Colors.grey[800],
+                        backgroundColor: const Color(0xFF151820),
                         valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE50914)),
                         minHeight: 4,
                       ),
@@ -909,7 +975,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
             Text(
               overview.isNotEmpty ? overview : 'Sem descrição disponível',
               style: TextStyle(
-                color: Colors.grey[400],
+                color: const Color(0xFFB0B3C6),
                 fontSize: 12,
                 height: 1.3,
               ),
@@ -951,7 +1017,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                             width: 70,
                             height: 70,
                             decoration: BoxDecoration(
-                              color: Colors.grey[800],
+                              color: const Color(0xFF151820),
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -960,7 +1026,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                             height: 12,
                             width: 60,
                             decoration: BoxDecoration(
-                              color: Colors.grey[800],
+                              color: const Color(0xFF151820),
                               borderRadius: BorderRadius.circular(4),
                             ),
                           ),
@@ -988,7 +1054,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                               height: 70,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(35),
-                                color: Colors.grey[800],
+                                color: const Color(0xFF151820),
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(35),
@@ -1016,7 +1082,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                             ),
                             Text(
                               character,
-                              style: TextStyle(fontSize: 10, color: Colors.grey[400]),
+                              style: TextStyle(fontSize: 10, color: const Color(0xFFB0B3C6)),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.center,
@@ -1047,7 +1113,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
               ),
               Text(
                 'Ver Todos',
-                style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 14),
               ),
             ],
           ),
@@ -1062,7 +1128,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                       width: 110,
                       margin: const EdgeInsets.only(right: 12),
                       decoration: BoxDecoration(
-                        color: Colors.grey[800],
+                        color: const Color(0xFF151820),
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
@@ -1071,7 +1137,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                     ? Center(
                         child: Text(
                           'Nenhuma série relacionada encontrada',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                          style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 14),
                         ),
                       )
                     : ListView.builder(
@@ -1105,12 +1171,12 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
                                         width: double.infinity,
                                         height: double.infinity,
                                         errorWidget: (context, url, error) => Container(
-                                          color: Colors.grey[800],
+                                          color: const Color(0xFF151820),
                                           child: const Icon(Icons.tv, size: 40, color: Colors.grey),
                                         ),
                                       )
                                     : Container(
-                                        color: Colors.grey[800],
+                                        color: const Color(0xFF151820),
                                         child: const Icon(Icons.tv, size: 40, color: Colors.grey),
                                       ),
                               ),
@@ -1137,25 +1203,7 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
             children: [
               GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.4),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
-                ),
-              ),
-              GestureDetector(
-                onTap: () {},
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.4),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.share, color: Colors.white, size: 22),
-                ),
+                child: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
               ),
             ],
           ),
@@ -1164,3 +1212,12 @@ class _TVShowDetailScreenState extends State<TVShowDetailScreen>
     );
   }
 }
+
+
+
+
+
+
+
+
+

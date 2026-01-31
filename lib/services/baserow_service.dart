@@ -16,6 +16,7 @@ class BaserowService {
   static const int _notificationsTableId = 4934; // Tabela Enviar Notificações
   static const int _episodesTableId = 4935;     // Tabela Episodios
   static const int _categoryLibraryTableId = 4997; // Tabela Categoria Biblioteca
+  static const int _userDataTableId = 5051;     // Tabela Dados do Usuario (favoritos, minha lista, progresso)
   
   // ID do campo Categoria na tabela Filmes & Series
   static const int _categoryFieldId = 33147;
@@ -265,7 +266,7 @@ class BaserowService {
     }
   }
 
-  // Episódios de uma série
+  // Episódios de uma série (paginação infinita)
   Future<List<Map<String, dynamic>>> getEpisodes(int seriesId) async {
     try {
       // Buscar o nome da série
@@ -276,57 +277,70 @@ class BaserowService {
         return [];
       }
       
-      // Tentar buscar com filtro primeiro (mais eficiente)
-      var url = '$_baseUrl/$_episodesTableId/?user_field_names=true&size=100&filter__Nome__contains=$seriesName';
+      // Buscar todos os episódios com paginação infinita
+      List<dynamic> allResults = [];
+      String? nextUrl = '$_baseUrl/$_episodesTableId/?user_field_names=true&size=200&filter__Nome__contains=$seriesName';
       
-      var response = await http.get(Uri.parse(url), headers: _headers);
-
-      if (response.statusCode == 200) {
-        var data = json.decode(response.body);
-        var results = data['results'] as List? ?? [];
+      while (nextUrl != null) {
+        final response = await http.get(Uri.parse(nextUrl), headers: _headers);
         
-        // Se não encontrou com filtro, busca todos e filtra localmente
-        if (results.isEmpty) {
-          response = await http.get(
-            Uri.parse('$_baseUrl/$_episodesTableId/?user_field_names=true&size=500'),
-            headers: _headers,
-          );
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final results = data['results'] as List? ?? [];
+          allResults.addAll(results);
+          
+          // Próxima página (null se não houver mais)
+          nextUrl = data['next'] as String?;
+        } else {
+          break;
+        }
+      }
+      
+      // Se não encontrou com filtro, busca todos e filtra localmente
+      if (allResults.isEmpty) {
+        nextUrl = '$_baseUrl/$_episodesTableId/?user_field_names=true&size=200';
+        
+        while (nextUrl != null) {
+          final response = await http.get(Uri.parse(nextUrl), headers: _headers);
           
           if (response.statusCode == 200) {
-            data = json.decode(response.body);
-            results = data['results'] as List? ?? [];
+            final data = json.decode(response.body);
+            final results = data['results'] as List? ?? [];
+            allResults.addAll(results);
             
-            // Normalizar nome da série para comparação
-            final seriesNameNormalized = _normalizeName(seriesName);
-            
-            // Filtrar episódios que pertencem à série
-            results = results.where((item) {
-              final episodeName = item['Nome']?.toString() ?? '';
-              final episodeNameNormalized = _normalizeName(episodeName);
-              
-              // Match exato ou contém o nome da série
-              return episodeNameNormalized == seriesNameNormalized ||
-                     episodeNameNormalized.contains(seriesNameNormalized) ||
-                     episodeNameNormalized.startsWith(seriesNameNormalized);
-            }).toList();
+            nextUrl = data['next'] as String?;
+          } else {
+            break;
           }
         }
         
-        if (results.isEmpty) {
-          return [];
-        }
+        // Normalizar nome da série para comparação
+        final seriesNameNormalized = _normalizeName(seriesName);
         
-        return results.map((item) => {
-          'id': _parseInt(item['id']),
-          'nome': item['Nome'] ?? '',
-          'link': item['Link'] ?? '',
-          'temporada': _parseInt(item['Temporada']),
-          'episodio': _parseInt(item['Episódio']),
-          'data': item['Data'] ?? '',
+        // Filtrar episódios que pertencem à série
+        allResults = allResults.where((item) {
+          final episodeName = item['Nome']?.toString() ?? '';
+          final episodeNameNormalized = _normalizeName(episodeName);
+          
+          // Match exato ou contém o nome da série
+          return episodeNameNormalized == seriesNameNormalized ||
+                 episodeNameNormalized.contains(seriesNameNormalized) ||
+                 episodeNameNormalized.startsWith(seriesNameNormalized);
         }).toList();
       }
       
-      return [];
+      if (allResults.isEmpty) {
+        return [];
+      }
+      
+      return allResults.map((item) => {
+        'id': _parseInt(item['id']),
+        'nome': item['Nome'] ?? '',
+        'link': item['Link'] ?? '',
+        'temporada': _parseInt(item['Temporada']),
+        'episodio': _parseInt(item['Episódio']),
+        'data': item['Data'] ?? '',
+      }).toList();
     } catch (e) {
       return [];
     }
@@ -462,7 +476,7 @@ class BaserowService {
   Future<List<String>> getSeriesCategories() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/$_categoriesTableId/?user_field_names=true&size=50'),
+        Uri.parse('$_baseUrl/$_categoriesTableId/?user_field_names=true&size=100'),
         headers: _headers,
       );
 
@@ -473,11 +487,8 @@ class BaserowService {
         
         for (final item in results) {
           final nome = item['Nome'] as String? ?? '';
-          // Pega categorias que começam com "Séries" (exceto as principais que já estão na home)
-          if (nome.startsWith('Séries') && 
-              nome != 'Séries Disney+' && 
-              nome != 'Séries Netflix' && 
-              nome != 'Séries GloboPlay') {
+          // Pega TODAS as categorias que começam com "Séries"
+          if (nome.startsWith('Séries')) {
             categories.add(nome);
           }
         }
@@ -527,19 +538,37 @@ class BaserowService {
   // Buscar filmes por gênero com paginação (para tela de categoria)
   Future<Map<String, dynamic>> getMoviesByGenrePaginated(String genre, {int page = 1, int size = 30}) async {
     try {
-      final Map<String, String> genreMapping = {
-        'Ação': 'Filmes | Acao',
-        'Comédia': 'Filmes | Comedia',
-        'Suspense': 'Filmes | Suspense',
-        'Ficção': 'Filmes | Ficcao',
-        'Romance': 'Filmes | Romance',
-        'Família': 'Filmes | Família',
-        'Terror': 'Filmes | Terror',
-        'Drama': 'Filmes | Drama',
-        'Aventura': 'Filmes | Aventura',
-      };
+      String searchTerm;
       
-      final searchTerm = genreMapping[genre] ?? 'Filmes | $genre';
+      // Se já é um valor do Baserow (contém "Filmes |"), usa direto
+      if (genre.contains('Filmes |')) {
+        searchTerm = genre;
+      } else {
+        // Senão, mapeia o nome do gênero para o formato do Baserow
+        final Map<String, String> genreMapping = {
+          'Ação': 'Filmes | Acao',
+          'Comédia': 'Filmes | Comedia',
+          'Suspense': 'Filmes | Suspense',
+          'Ficção': 'Filmes | Ficcao',
+          'Romance': 'Filmes | Romance',
+          'Família': 'Filmes | Família',
+          'Terror': 'Filmes | Terror',
+          'Drama': 'Filmes | Drama',
+          'Aventura': 'Filmes | Aventura',
+          'Animação': 'Filmes | Animacao',
+          'Lançamentos': 'Filmes | Lancamentos',
+          'Lançamentos 2025': 'Filmes | Lancamentos 2025',
+          'Cinema': 'Filmes | Cinema',
+          'Nacionais': 'Filmes | Nacionais',
+          'Documentarios': 'Filmes | Documentarios',
+          'Religiosos': 'Filmes | Religiosos',
+          'Guerra': 'Filmes | Guerra',
+          'Faroeste': 'Filmes | Faroeste',
+          'Fantasia': 'Filmes | Fantasia',
+        };
+        
+        searchTerm = genreMapping[genre] ?? 'Filmes | $genre';
+      }
       
       final response = await http.get(
         Uri.parse('$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Categoria__contains=$searchTerm&size=$size&page=$page'),
@@ -565,15 +594,23 @@ class BaserowService {
   // Buscar séries por categoria com paginação
   Future<Map<String, dynamic>> getTVShowsByCategoryPaginated(String category, {int page = 1, int size = 30}) async {
     try {
-      final Map<String, String> categoryMapping = {
-        'Disney': 'Series | Disney Plus',
-        'Netflix': 'Series | Netflix',
-        'GloboPlay': 'Series | Globoplay',
-        'Novelas': 'Series | Novelas',
-        'Ultimas': '', // Busca todas as séries ordenadas por data
-      };
+      String searchTerm;
       
-      final searchTerm = categoryMapping[category] ?? 'Series | $category';
+      // Se já contém "Series |", usa direto (vem do Baserow)
+      if (category.contains('Series |')) {
+        searchTerm = category;
+      } else {
+        // Senão, mapeia ou adiciona o prefixo
+        final Map<String, String> categoryMapping = {
+          'Disney': 'Series | Disney Plus',
+          'Netflix': 'Series | Netflix',
+          'GloboPlay': 'Series | Globoplay',
+          'Novelas': 'Series | Novelas',
+          'Ultimas': '', // Busca todas as séries ordenadas por data
+        };
+        
+        searchTerm = categoryMapping[category] ?? 'Series | $category';
+      }
       
       String url;
       if (category == 'Ultimas' || searchTerm.isEmpty) {
@@ -589,6 +626,7 @@ class BaserowService {
         final data = json.decode(response.body);
         final List results = data['results'] ?? [];
         final hasNext = data['next'] != null;
+        
         return {
           'tvShows': results.map((item) => _convertToTVShow(item)).toList(),
           'hasNext': hasNext,
@@ -628,9 +666,9 @@ class BaserowService {
 
   // Buscar TODOS os filmes com paginação (para biblioteca)
   // sortBy: 'Recentes', 'A-Z', 'Z-A', 'Mais vistos'
-  // category: categoria específica (ex: 'Ação', 'Comédia')
+  // category: valor exato do Baserow (ex: 'Filmes | Acao') ou null para todos
   Future<Map<String, dynamic>> getAllMoviesPaginated({
-    int page = 1, 
+    int page = 1,
     int size = 30,
     String sortBy = 'Recentes',
     String? category,
@@ -651,36 +689,15 @@ class BaserowService {
         default: // Recentes
           orderBy = '-Data';
       }
-      
-      String url = '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Tipo__equal=Filmes&order_by=$orderBy&size=$size&page=$page';
-      
-      // Adiciona filtro de categoria se especificado
+
+      String url =
+          '$_baseUrl/$_moviesTableId/?user_field_names=true&filter__Tipo__equal=Filmes&order_by=$orderBy&size=$size&page=$page';
+
+      // Adiciona filtro de categoria se especificado (usa valor direto do Baserow)
       if (category != null && category.isNotEmpty) {
-        final Map<String, String> categoryMapping = {
-          'Ação': 'Filmes | Acao',
-          'Animação': 'Filmes | Animacao',
-          'Aventura': 'Filmes | Aventura',
-          'Cinema': 'Filmes | Cinema',
-          'Comédia': 'Filmes | Comedia',
-          'Documentarios': 'Documentarios',
-          'Drama': 'Filmes | Drama',
-          'Família': 'Filmes | Familia',
-          'Fantasia': 'Filmes | Fantasia',
-          'Faroeste': 'Filmes | Faroeste',
-          'Ficção': 'Filmes | Ficcao',
-          'Guerra': 'Filmes | Guerra',
-          'Lançamentos': 'Filmes | Lancamentos',
-          'Lançamentos 2025': 'Filmes | Lancamentos 2025',
-          'Nacionais': 'Filmes | Nacionais',
-          'Religiosos': 'Filmes | Religiosos',
-          'Romance': 'Filmes | Romance',
-          'Suspense': 'Filmes | Suspense',
-          'Terror': 'Filmes | Terror',
-        };
-        final searchTerm = categoryMapping[category] ?? 'Filmes | $category';
-        url += '&filter__Categoria__contains=$searchTerm';
+        url += '&filter__Categoria__contains=$category';
       }
-      
+
       final response = await http.get(Uri.parse(url), headers: _headers);
 
       if (response.statusCode == 200) {
@@ -689,13 +706,13 @@ class BaserowService {
         final hasNext = data['next'] != null;
         return {
           'movies': results.map((item) => _convertToMovie(item)).toList(),
-          'hasNext': hasNext,
+          'hasMore': hasNext,
           'total': data['count'] ?? 0,
         };
       }
-      return {'movies': <Movie>[], 'hasNext': false, 'total': 0};
+      return {'movies': <Movie>[], 'hasMore': false, 'total': 0};
     } catch (e) {
-      return {'movies': <Movie>[], 'hasNext': false, 'total': 0};
+      return {'movies': <Movie>[], 'hasMore': false, 'total': 0};
     }
   }
 
@@ -775,20 +792,59 @@ class BaserowService {
     }
   }
 
-  // Buscar categorias da tabela Categoria Biblioteca (4997)
-  // Retorna todas as categorias de filmes (que começam com "Filmes |")
-  Future<List<String>> getMovieCategories() async {
+  // Buscar categorias de séries da tabela Categoria Biblioteca (4997)
+  Future<List<Map<String, String>>> getAllSeriesCategories() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/$_categoryLibraryTableId/?user_field_names=true&size=100'),
+        Uri.parse(
+            '$_baseUrl/$_categoryLibraryTableId/?user_field_names=true&size=100'),
         headers: _headers,
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final List results = data['results'] ?? [];
-        final List<String> categories = [];
-        
+        final List<Map<String, String>> categories = [];
+
+        for (final item in results) {
+          final nome = item['Nome']?.toString() ?? '';
+          // Pega categorias que começam com "Series |"
+          if (nome.startsWith('Series |')) {
+            // Extrai o nome legível (ex: "Series | Disney Plus" -> "Disney Plus")
+            final parts = nome.split('|');
+            if (parts.length > 1) {
+              final catName = parts[1].trim();
+              categories.add({
+                'name': catName,
+                'value': nome, // Valor exato do Baserow
+              });
+            }
+          }
+        }
+        return categories;
+      }
+      return [];
+    } catch (e) {
+      print('Erro ao buscar categorias de séries: $e');
+      return [];
+    }
+  }
+
+  // Buscar categorias da tabela Categoria Biblioteca (4997)
+  // Retorna lista de mapas com 'name' (nome legível) e 'value' (valor exato do Baserow)
+  Future<List<Map<String, String>>> getMovieCategoriesWithValues() async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+            '$_baseUrl/$_categoryLibraryTableId/?user_field_names=true&size=100'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        final List<Map<String, String>> categories = [];
+
         for (final item in results) {
           final nome = item['Nome']?.toString() ?? '';
           // Pega categorias que começam com "Filmes |"
@@ -803,11 +859,15 @@ class BaserowService {
                 'Comedia': 'Comédia',
                 'Ficcao': 'Ficção',
                 'Familia': 'Família',
+                'Família': 'Família',
                 'Animacao': 'Animação',
                 'Lancamentos': 'Lançamentos',
                 'Lancamentos 2025': 'Lançamentos 2025',
               };
-              categories.add(reverseMapping[catName] ?? catName);
+              categories.add({
+                'name': reverseMapping[catName] ?? catName,
+                'value': nome, // Valor exato do Baserow
+              });
             }
           }
         }
@@ -818,6 +878,12 @@ class BaserowService {
       print('Erro ao buscar categorias de filmes: $e');
       return [];
     }
+  }
+
+  // Método legado para compatibilidade
+  Future<List<String>> getMovieCategories() async {
+    final categories = await getMovieCategoriesWithValues();
+    return categories.map((c) => c['name']!).toList();
   }
 
   // Buscar categorias de séries da tabela Categoria Biblioteca (4997)
@@ -1772,6 +1838,226 @@ class BaserowService {
       return false;
     } catch (e) {
       return false;
+    }
+  }
+
+  // ==================== SINCRONIZAÇÃO DE DADOS DO USUÁRIO ====================
+  
+  // Salvar favoritos do usuário no Baserow
+  Future<bool> syncFavorites(int userId, List<String> favorites) async {
+    try {
+      // Busca se já existe registro para este usuário
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_userDataTableId/?user_field_names=true&filter__Usuario_ID__equal=$userId'),
+        headers: _headers,
+      );
+
+      final favoritesJson = json.encode(favorites);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        
+        if (results.isNotEmpty) {
+          // Atualiza registro existente
+          final recordId = results.first['id'];
+          final updateResponse = await http.patch(
+            Uri.parse('$_baseUrl/$_userDataTableId/$recordId/?user_field_names=true'),
+            headers: _headers,
+            body: json.encode({'Favoritos': favoritesJson}),
+          );
+          return updateResponse.statusCode == 200;
+        } else {
+          // Cria novo registro
+          final createResponse = await http.post(
+            Uri.parse('$_baseUrl/$_userDataTableId/?user_field_names=true'),
+            headers: _headers,
+            body: json.encode({
+              'Usuario_ID': userId,
+              'Favoritos': favoritesJson,
+            }),
+          );
+          return createResponse.statusCode == 200;
+        }
+      }
+      return false;
+    } catch (e) {
+      print('Erro ao sincronizar favoritos: $e');
+      return false;
+    }
+  }
+
+  // Buscar favoritos do usuário do Baserow
+  Future<List<String>> getFavorites(int userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_userDataTableId/?user_field_names=true&filter__Usuario_ID__equal=$userId'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        
+        if (results.isNotEmpty) {
+          final favoritesStr = results.first['Favoritos']?.toString() ?? '[]';
+          final List decoded = json.decode(favoritesStr);
+          return decoded.map((e) => e.toString()).toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Erro ao buscar favoritos: $e');
+      return [];
+    }
+  }
+
+  // Salvar "Minha Lista" do usuário no Baserow
+  Future<bool> syncMyList(int userId, List<String> myList) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_userDataTableId/?user_field_names=true&filter__Usuario_ID__equal=$userId'),
+        headers: _headers,
+      );
+
+      final myListJson = json.encode(myList);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        
+        if (results.isNotEmpty) {
+          // Atualiza registro existente
+          final recordId = results.first['id'];
+          final updateResponse = await http.patch(
+            Uri.parse('$_baseUrl/$_userDataTableId/$recordId/?user_field_names=true'),
+            headers: _headers,
+            body: json.encode({'Minha_List': myListJson}),
+          );
+          return updateResponse.statusCode == 200;
+        } else {
+          // Cria novo registro
+          final createResponse = await http.post(
+            Uri.parse('$_baseUrl/$_userDataTableId/?user_field_names=true'),
+            headers: _headers,
+            body: json.encode({
+              'Usuario_ID': userId,
+              'Minha_List': myListJson,
+            }),
+          );
+          return createResponse.statusCode == 200;
+        }
+      }
+      return false;
+    } catch (e) {
+      print('Erro ao sincronizar minha lista: $e');
+      return false;
+    }
+  }
+
+  // Buscar "Minha Lista" do usuário do Baserow
+  Future<List<String>> getMyList(int userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_userDataTableId/?user_field_names=true&filter__Usuario_ID__equal=$userId'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        
+        if (results.isNotEmpty) {
+          final myListValue = results.first['Minha_List'];
+          
+          // Se for null ou vazio, retorna lista vazia
+          if (myListValue == null || myListValue.toString().isEmpty) {
+            return [];
+          }
+          
+          final myListStr = myListValue.toString();
+          
+          try {
+            final List decoded = json.decode(myListStr);
+            return decoded.map((e) => e.toString()).toList();
+          } catch (e) {
+            print('Erro ao decodificar Minha Lista: $e');
+            return [];
+          }
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Erro ao buscar minha lista: $e');
+      return [];
+    }
+  }
+
+  // Salvar progresso de visualização do usuário no Baserow
+  Future<bool> syncWatchProgress(int userId, List<Map<String, dynamic>> progressList) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_userDataTableId/?user_field_names=true&filter__Usuario_ID__equal=$userId'),
+        headers: _headers,
+      );
+
+      final progressJson = json.encode(progressList);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        
+        if (results.isNotEmpty) {
+          // Atualiza registro existente
+          final recordId = results.first['id'];
+          final updateResponse = await http.patch(
+            Uri.parse('$_baseUrl/$_userDataTableId/$recordId/?user_field_names=true'),
+            headers: _headers,
+            body: json.encode({'Progresso': progressJson}),
+          );
+          return updateResponse.statusCode == 200;
+        } else {
+          // Cria novo registro
+          final createResponse = await http.post(
+            Uri.parse('$_baseUrl/$_userDataTableId/?user_field_names=true'),
+            headers: _headers,
+            body: json.encode({
+              'Usuario_ID': userId,
+              'Progresso': progressJson,
+            }),
+          );
+          return createResponse.statusCode == 200;
+        }
+      }
+      return false;
+    } catch (e) {
+      print('Erro ao sincronizar progresso: $e');
+      return false;
+    }
+  }
+
+  // Buscar progresso de visualização do usuário do Baserow
+  Future<List<Map<String, dynamic>>> getWatchProgress(int userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/$_userDataTableId/?user_field_names=true&filter__Usuario_ID__equal=$userId'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'] ?? [];
+        
+        if (results.isNotEmpty) {
+          final progressStr = results.first['Progresso']?.toString() ?? '[]';
+          final List decoded = json.decode(progressStr);
+          return decoded.map((e) => e as Map<String, dynamic>).toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Erro ao buscar progresso: $e');
+      return [];
     }
   }
 }

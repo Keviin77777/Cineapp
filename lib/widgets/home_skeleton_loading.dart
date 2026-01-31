@@ -34,7 +34,7 @@ class _HomeSkeletonLoadingState extends State<HomeSkeletonLoading>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF0E0F12),
       body: AnimatedBuilder(
         animation: _animation,
         builder: (context, child) {
@@ -177,9 +177,9 @@ class _HomeSkeletonLoadingState extends State<HomeSkeletonLoading>
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
           colors: [
-            Colors.grey[900]!,
-            Colors.grey[800]!,
-            Colors.grey[900]!,
+            const Color(0xFF151820)!,
+            const Color(0xFF151820)!,
+            const Color(0xFF151820)!,
           ],
           stops: [
             _animation.value - 0.3,
@@ -191,3 +191,13 @@ class _HomeSkeletonLoadingState extends State<HomeSkeletonLoading>
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

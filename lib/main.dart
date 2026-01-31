@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/splash_screen.dart';
 import 'screens/tv_show_detail_screen.dart';
+import 'utils/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,17 +16,7 @@ class CinemaxApp extends StatelessWidget {
     return MaterialApp(
       title: 'Cinemax',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        primaryColor: Colors.black,
-        scaffoldBackgroundColor: Colors.black,
-        colorScheme: ColorScheme.dark(
-          primary: const Color(0xFF12CDD9),
-          secondary: const Color(0xFFFF8700),
-          surface: const Color(0xFF252836),
-        ),
-        fontFamily: 'Poppins',
-      ),
+      theme: AppTheme.darkTheme,
       navigatorObservers: [tvShowRouteObserver],
       home: const SplashScreen(),
     );

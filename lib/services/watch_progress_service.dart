@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'baserow_service.dart';
 
 class WatchProgress {
   final int contentId;
@@ -79,6 +80,46 @@ class WatchProgress {
 
 class WatchProgressService {
   static const String _key = 'watch_progress';
+  final BaserowService _baserowService = BaserowService();
+
+  // Obter ID do usuário logado
+  Future<int?> _getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userJson = prefs.getString('currentUser');
+    if (userJson != null) {
+      final user = json.decode(userJson);
+      return user['id'] as int?;
+    }
+    return null;
+  }
+
+  // Sincronizar com Baserow (chamado após cada alteração)
+  Future<void> _syncToBaserow() async {
+    final userId = await _getUserId();
+    if (userId != null) {
+      final progressList = await getAll();
+      final progressJson = progressList.map((p) => p.toJson()).toList();
+      
+      // Sincroniza em background (não bloqueia a UI)
+      _baserowService.syncWatchProgress(userId, progressJson);
+    }
+  }
+
+  // Carregar dados do Baserow (chamado no login)
+  Future<void> loadFromBaserow() async {
+    final userId = await _getUserId();
+    if (userId != null) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        
+        // Busca progresso do Baserow
+        final progressData = await _baserowService.getWatchProgress(userId);
+        await prefs.setString(_key, jsonEncode(progressData));
+      } catch (e) {
+        print('Erro ao carregar progresso do Baserow: $e');
+      }
+    }
+  }
 
   // Salvar progresso
   Future<void> saveProgress(WatchProgress progress) async {
@@ -101,6 +142,7 @@ class WatchProgressService {
     }
     
     await prefs.setString(_key, jsonEncode(list.map((p) => p.toJson()).toList()));
+    _syncToBaserow(); // Sincroniza em background
   }
 
   // Buscar todos os progressos
@@ -139,6 +181,7 @@ class WatchProgressService {
     );
     
     await prefs.setString(_key, jsonEncode(list.map((p) => p.toJson()).toList()));
+    _syncToBaserow(); // Sincroniza em background
   }
 
   // Buscar último progresso de uma série (qualquer episódio)

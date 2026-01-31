@@ -98,13 +98,13 @@ class _NextEpisodeOverlayState extends State<NextEpisodeOverlay>
                 child: CachedNetworkImage(
                   imageUrl: imageUrl,
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(color: Colors.black),
-                  errorWidget: (context, url, error) => Container(color: Colors.black),
+                  placeholder: (context, url) => Container(color: const Color(0xFF0E0F12)),
+                  errorWidget: (context, url, error) => Container(color: const Color(0xFF0E0F12)),
                 ),
               )
             else
               Positioned.fill(
-                child: Container(color: Colors.black),
+                child: Container(color: const Color(0xFF0E0F12)),
               ),
             
             // Overlay gradient para legibilidade
@@ -115,8 +115,8 @@ class _NextEpisodeOverlayState extends State<NextEpisodeOverlay>
                     begin: Alignment.centerRight,
                     end: Alignment.centerLeft,
                     colors: [
-                      Colors.black.withOpacity(0.3),
-                      Colors.black.withOpacity(0.95),
+                      const Color(0xFF0E0F12).withOpacity(0.3),
+                      const Color(0xFF0E0F12).withOpacity(0.95),
                     ],
                     stops: const [0.3, 0.9],
                   ),
@@ -139,7 +139,7 @@ class _NextEpisodeOverlayState extends State<NextEpisodeOverlay>
                         onPressed: widget.onCancel,
                         icon: const Icon(Icons.close, color: Colors.white, size: 32),
                         style: IconButton.styleFrom(
-                          backgroundColor: Colors.black.withOpacity(0.5),
+                          backgroundColor: const Color(0xFF0E0F12).withOpacity(0.5),
                         ),
                       ),
                     ),
@@ -158,13 +158,13 @@ class _NextEpisodeOverlayState extends State<NextEpisodeOverlay>
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF12CDD9),
+                                  color: const Color(0xFF7C4DFF),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
                                   'PRÓXIMO EM $_countdown S',
                                   style: const TextStyle(
-                                    color: Colors.black,
+                                    color: const Color(0xFF0E0F12),
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     letterSpacing: 1,
@@ -221,7 +221,7 @@ class _NextEpisodeOverlayState extends State<NextEpisodeOverlay>
                               Text(
                                 'TEMPORADA ${widget.seasonNumber}',
                                 style: TextStyle(
-                                  color: Colors.grey[300],
+                                  color: const Color(0xFFB0B3C6),
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   letterSpacing: 1,
@@ -237,7 +237,7 @@ class _NextEpisodeOverlayState extends State<NextEpisodeOverlay>
                             Text(
                               overview,
                               style: TextStyle(
-                                color: Colors.grey[300],
+                                color: const Color(0xFFB0B3C6),
                                 fontSize: 15,
                                 height: 1.5,
                               ),
@@ -263,8 +263,8 @@ class _NextEpisodeOverlayState extends State<NextEpisodeOverlay>
                                   ),
                                 ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF12CDD9),
-                                  foregroundColor: Colors.black,
+                                  backgroundColor: const Color(0xFF7C4DFF),
+                                  foregroundColor: const Color(0xFF0E0F12),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 32,
                                     vertical: 16,
@@ -330,7 +330,7 @@ class _NextEpisodeOverlayState extends State<NextEpisodeOverlay>
                   final progress = (_countdown - 1 + value) / 5;
                   return LinearProgressIndicator(
                     value: progress,
-                    backgroundColor: Colors.grey[800],
+                    backgroundColor: const Color(0xFF151820),
                     valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF12CDD9)),
                     minHeight: 4,
                   );
@@ -343,3 +343,13 @@ class _NextEpisodeOverlayState extends State<NextEpisodeOverlay>
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

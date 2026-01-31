@@ -39,7 +39,7 @@ class NewReleaseCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: const Color(0xFF0E0F12).withOpacity(0.3),
               blurRadius: 6,
               offset: const Offset(0, 3),
             ),
@@ -56,13 +56,13 @@ class NewReleaseCard extends StatelessWidget {
                 width: 125,
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
-                  color: Colors.grey[800],
+                  color: const Color(0xFF151820),
                   child: const Center(
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ),
                 errorWidget: (context, url, error) => Container(
-                  color: Colors.grey[800],
+                  color: const Color(0xFF151820),
                   child: const Icon(Icons.movie, size: 40),
                 ),
               ),
@@ -99,3 +99,13 @@ class NewReleaseCard extends StatelessWidget {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

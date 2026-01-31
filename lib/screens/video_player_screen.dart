@@ -80,9 +80,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
   void initState() {
     super.initState();
     
-    // Inicializar episódio e temporada atuais
-    _currentEpisodeNumber = widget.episodeNumber ?? 1;
-    _currentSeasonNumber = widget.seasonNumber ?? 1;
+    // Inicializar episódio e temporada atuais (só para séries)
+    _currentEpisodeNumber = widget.episodeNumber ?? 0;
+    _currentSeasonNumber = widget.seasonNumber ?? 0;
     
     _loadingController = AnimationController(
       vsync: this,
@@ -476,7 +476,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
         return false;
       },
       child: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: const Color(0xFF0E0F12),
         body: GestureDetector(
           onTap: _toggleControls,
           child: Stack(
@@ -500,7 +500,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
               if (_showCategoryBanner && !_isLoading && _errorMessage == null) _buildCategoryBanner(),
               if (_showControls && !_isLoading && _errorMessage == null && !_showNextEpisodeOverlay) ...[
                 // Overlay escuro quando controles estão visíveis
-                Container(color: Colors.black.withOpacity(0.4)),
+                Container(color: const Color(0xFF0E0F12).withOpacity(0.4)),
                 _buildControls(),
               ],
               // Overlay de próximo episódio
@@ -522,7 +522,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
 
   Widget _buildLoading() {
     return Container(
-      color: Colors.black,
+      color: const Color(0xFF0E0F12),
       child: Center(child: _buildDiamondLoader()),
     );
   }
@@ -541,11 +541,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
             width: 18,
             height: 18,
             decoration: BoxDecoration(
-              color: const Color(0xFF12CDD9),
+              color: const Color(0xFF7C4DFF),
               borderRadius: BorderRadius.circular(3),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF12CDD9).withOpacity(0.5),
+                  color: const Color(0xFF7C4DFF).withOpacity(0.5),
                   blurRadius: 12,
                   spreadRadius: 2,
                 ),
@@ -559,7 +559,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
 
   Widget _buildError() {
     return Container(
-      color: Colors.black,
+      color: const Color(0xFF0E0F12),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -570,7 +570,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF12CDD9)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7C4DFF)),
               child: const Text('Voltar'),
             ),
           ],
@@ -595,11 +595,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
                 width: 3,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF12CDD9),
+                  color: const Color(0xFF7C4DFF),
                   borderRadius: BorderRadius.circular(2),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF12CDD9).withOpacity(0.5),
+                      color: const Color(0xFF7C4DFF).withOpacity(0.5),
                       blurRadius: 6,
                       spreadRadius: 1,
                     ),
@@ -623,11 +623,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
                       ],
                     ),
                   ),
-                  if (_currentSeasonNumber > 0 && _currentEpisodeNumber > 0)
+                  // Só mostra T1E1 se for série (type == 'tv')
+                  if (widget.type == 'tv' && _currentSeasonNumber > 0 && _currentEpisodeNumber > 0)
                     Text(
                       'T$_currentSeasonNumber • E$_currentEpisodeNumber',
                       style: TextStyle(
-                        color: Colors.grey[400],
+                        color: const Color(0xFFB0B3C6),
                         fontSize: 10,
                         shadows: const [
                           Shadow(blurRadius: 4, color: Colors.black),
@@ -649,7 +650,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Colors.black.withOpacity(0.7), Colors.transparent, Colors.transparent, Colors.black.withOpacity(0.7)],
+          colors: [const Color(0xFF0E0F12).withOpacity(0.7), Colors.transparent, Colors.transparent, const Color(0xFF0E0F12).withOpacity(0.7)],
           stops: const [0.0, 0.2, 0.8, 1.0],
         ),
       ),
@@ -682,7 +683,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
               children: [
                 Text(widget.title.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
                 if (_currentSeasonNumber > 0 && _currentEpisodeNumber > 0)
-                  Text('T${_currentSeasonNumber}E$_currentEpisodeNumber', style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+                  Text('T${_currentSeasonNumber}E$_currentEpisodeNumber', style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 12)),
               ],
             ),
           ),
@@ -774,9 +775,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
                       trackHeight: 2,
                       thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
                       overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
-                      activeTrackColor: const Color(0xFF12CDD9),
-                      inactiveTrackColor: Colors.grey[800],
-                      thumbColor: const Color(0xFF12CDD9),
+                      activeTrackColor: const Color(0xFFE53935),
+                      inactiveTrackColor: const Color(0xFF151820),
+                      thumbColor: const Color(0xFFE53935),
                     ),
                     child: Slider(
                       value: displayProgress.clamp(0.0, 1.0),
@@ -927,3 +928,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     }
   }
 }
+
+
+
+
+
+
+

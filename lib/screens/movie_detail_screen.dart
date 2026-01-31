@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/baserow_service.dart';
 import '../services/watch_progress_service.dart';
+import '../services/favorites_service.dart';
 import '../models/movie.dart';
 import '../widgets/skeleton_loading.dart';
 import '../widgets/movie_card.dart';
@@ -25,6 +26,7 @@ class MovieDetailScreen extends StatefulWidget {
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   final BaserowService _baserowService = BaserowService();
   final WatchProgressService _watchProgressService = WatchProgressService();
+  final FavoritesService _favoritesService = FavoritesService();
   Movie? _movie;
   Map<String, dynamic>? _tmdbData;
   List<Movie> _relatedMovies = [];
@@ -32,6 +34,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   bool _isLoading = true;
   bool _isLoadingRelated = true;
   bool _isOverviewExpanded = false;
+  bool _isFavorite = false;
+  bool _isInMyList = false;
 
   @override
   void initState() {
@@ -45,6 +49,18 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     );
     _loadMovieDetails();
     _loadWatchProgress();
+    _loadFavoritesStatus();
+  }
+
+  Future<void> _loadFavoritesStatus() async {
+    final isFav = await _favoritesService.isFavorite(widget.movieId, 'movie');
+    final isInList = await _favoritesService.isInMyList(widget.movieId, 'movie');
+    if (mounted) {
+      setState(() {
+        _isFavorite = isFav;
+        _isInMyList = isInList;
+      });
+    }
   }
 
   Future<void> _loadWatchProgress() async {
@@ -117,7 +133,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.black,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading
           ? const SkeletonLoading()
           : _movie == null
@@ -198,18 +214,18 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     fit: BoxFit.cover,
                     alignment: Alignment.topCenter,
                     errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[900],
+                      color: const Color(0xFF151820),
                       child: const Icon(Icons.movie, size: 80, color: Colors.grey),
                     ),
                   )
                 : Container(
-                    color: Colors.grey[900],
+                    color: const Color(0xFF151820),
                     child: const Center(child: Icon(Icons.movie, size: 80, color: Colors.grey)),
                   ),
           ),
           // Overlay
           Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.25)),
+            child: Container(color: const Color(0xFF0E0F12).withOpacity(0.25)),
           ),
           // Gradiente
           Positioned(
@@ -224,8 +240,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(0.5),
-                    Colors.black.withOpacity(0.85),
+                    const Color(0xFF0E0F12).withOpacity(0.5),
+                    const Color(0xFF0E0F12).withOpacity(0.85),
                     Theme.of(context).scaffoldBackgroundColor,
                   ],
                   stops: const [0.0, 0.3, 0.6, 1.0],
@@ -263,24 +279,24 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       if (_movie!.releaseDate.isNotEmpty)
                         Text(
                           _movie!.releaseDate.split('-')[0],
-                          style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                          style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 14),
                         ),
                       if (_movie!.categories != null && _movie!.categories!.isNotEmpty) ...[
                         const SizedBox(width: 8),
-                        Container(width: 4, height: 4, decoration: BoxDecoration(color: Colors.grey[400], shape: BoxShape.circle)),
+                        Container(width: 4, height: 4, decoration: BoxDecoration(color: const Color(0xFFB0B3C6), shape: BoxShape.circle)),
                         const SizedBox(width: 8),
                         Text(
                           _movie!.categories!.split(',').first.trim(),
-                          style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                          style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 14),
                         ),
                       ],
                       if (_movie!.duration != null && _movie!.duration!.isNotEmpty) ...[
                         const SizedBox(width: 8),
-                        Container(width: 4, height: 4, decoration: BoxDecoration(color: Colors.grey[400], shape: BoxShape.circle)),
+                        Container(width: 4, height: 4, decoration: BoxDecoration(color: const Color(0xFFB0B3C6), shape: BoxShape.circle)),
                         const SizedBox(width: 8),
                         Text(
                           _formatDuration(_movie!.duration),
-                          style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                          style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 14),
                         ),
                       ],
                     ],
@@ -297,7 +313,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       child: Text(
                         overview,
                         style: TextStyle(
-                          color: Colors.grey[300],
+                          color: const Color(0xFFB0B3C6),
                           fontSize: 13,
                           height: 1.5,
                         ),
@@ -341,36 +357,73 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                               );
                             }
                           },
-                          icon: const Icon(Icons.play_arrow),
-                          label: Text(_watchProgress != null ? 'Continuar' : 'Assistir'),
+                          icon: const Icon(Icons.play_arrow, size: 22),
+                          label: Text(
+                            _watchProgress != null ? 'Continuar' : 'Assistir',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE50914),
+                            backgroundColor: const Color(0xFFC62828),
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            elevation: 3,
+                            shadowColor: const Color(0xFFC62828).withOpacity(0.4),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey[800]?.withOpacity(0.6),
+                          color: const Color(0xFF151820)?.withOpacity(0.6),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: IconButton(
-                          onPressed: () {},
-                          icon: const Icon(Icons.list_alt, color: Colors.white),
+                          onPressed: () async {
+                            await _favoritesService.toggleMyList(widget.movieId, 'movie');
+                            final isInList = await _favoritesService.isInMyList(widget.movieId, 'movie');
+                            setState(() => _isInMyList = isInList);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(isInList ? 'Adicionado à Minha Lista' : 'Removido da Minha Lista'),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          icon: Icon(
+                            _isInMyList ? Icons.bookmark : Icons.bookmark_border,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey[800]?.withOpacity(0.6),
+                          color: const Color(0xFF151820)?.withOpacity(0.6),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: IconButton(
-                          onPressed: () {},
-                          icon: const Icon(Icons.favorite_border, color: Colors.white),
+                          onPressed: () async {
+                            await _favoritesService.toggleFavorite(widget.movieId, 'movie');
+                            final isFav = await _favoritesService.isFavorite(widget.movieId, 'movie');
+                            setState(() => _isFavorite = isFav);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(isFav ? 'Adicionado aos Favoritos' : 'Removido dos Favoritos'),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          icon: Icon(
+                            _isFavorite ? Icons.favorite : Icons.favorite_border,
+                            color: _isFavorite ? Colors.red : Colors.white,
+                          ),
                         ),
                       ),
                     ],
@@ -456,7 +509,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                             width: 70,
                             height: 70,
                             decoration: BoxDecoration(
-                              color: Colors.grey[800],
+                              color: const Color(0xFF151820),
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -465,7 +518,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                             height: 12,
                             width: 60,
                             decoration: BoxDecoration(
-                              color: Colors.grey[800],
+                              color: const Color(0xFF151820),
                               borderRadius: BorderRadius.circular(4),
                             ),
                           ),
@@ -474,7 +527,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                             height: 10,
                             width: 50,
                             decoration: BoxDecoration(
-                              color: Colors.grey[850],
+                              color: const Color(0xFF151820),
                               borderRadius: BorderRadius.circular(4),
                             ),
                           ),
@@ -502,7 +555,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                               height: 70,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(35),
-                                color: Colors.grey[800],
+                                color: const Color(0xFF151820),
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(35),
@@ -532,7 +585,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                               character,
                               style: TextStyle(
                                 fontSize: 10,
-                                color: Colors.grey[400],
+                                color: const Color(0xFFB0B3C6),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -564,7 +617,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
               ),
               Icon(
                 Icons.arrow_forward_ios,
-                color: Colors.grey[400],
+                color: const Color(0xFFB0B3C6),
                 size: 20,
               ),
             ],
@@ -580,7 +633,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       width: 125,
                       margin: const EdgeInsets.only(right: 7),
                       decoration: BoxDecoration(
-                        color: Colors.grey[800],
+                        color: const Color(0xFF151820),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -589,7 +642,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     ? Center(
                         child: Text(
                           'Nenhum filme relacionado encontrado',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                          style: TextStyle(color: const Color(0xFFB0B3C6), fontSize: 14),
                         ),
                       )
                     : ListView.builder(
@@ -619,7 +672,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.black.withOpacity(0.6),
+              const Color(0xFF0E0F12).withOpacity(0.6),
               Colors.transparent,
             ],
           ),
@@ -632,14 +685,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
               children: [
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
-                  ),
+                  child: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
                 ),
               ],
             ),
@@ -649,3 +695,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     );
   }
 }
+
+
+
+
+

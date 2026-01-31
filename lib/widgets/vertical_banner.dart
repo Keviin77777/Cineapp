@@ -123,13 +123,13 @@ class _VerticalBannerState extends State<VerticalBanner> {
             fit: BoxFit.cover,
             alignment: const Alignment(0.0, -0.3),
             placeholder: (context, url) => Container(
-              color: Colors.grey[900],
+              color: const Color(0xFF151820),
               child: const Center(
                 child: CircularProgressIndicator(),
               ),
             ),
             errorWidget: (context, url, error) => Container(
-              color: Colors.grey[900],
+              color: const Color(0xFF151820),
               child: const Icon(Icons.movie, size: 80, color: Colors.grey),
             ),
           ),
@@ -147,8 +147,8 @@ class _VerticalBannerState extends State<VerticalBanner> {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(0.6),
-                    Colors.black,
+                    const Color(0xFF0E0F12).withOpacity(0.6),
+                    const Color(0xFF0E0F12),
                   ],
                 ),
               ),
@@ -195,7 +195,7 @@ class _VerticalBannerState extends State<VerticalBanner> {
                   decoration: BoxDecoration(
                     color: _currentPage == index
                         ? Theme.of(context).colorScheme.primary
-                        : Colors.grey[600],
+                        : const Color(0xFF6F7385),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -207,3 +207,13 @@ class _VerticalBannerState extends State<VerticalBanner> {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

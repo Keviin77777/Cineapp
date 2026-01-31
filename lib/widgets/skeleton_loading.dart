@@ -34,7 +34,7 @@ class _SkeletonLoadingState extends State<SkeletonLoading>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF0E0F12),
       body: AnimatedBuilder(
         animation: _animation,
         builder: (context, child) {
@@ -66,8 +66,8 @@ class _SkeletonLoadingState extends State<SkeletonLoading>
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withOpacity(0.8),
-                        Colors.black,
+                        const Color(0xFF0E0F12).withOpacity(0.8),
+                        const Color(0xFF0E0F12),
                       ],
                     ),
                   ),
@@ -201,9 +201,9 @@ class _SkeletonLoadingState extends State<SkeletonLoading>
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
           colors: [
-            Colors.grey[900]!,
-            Colors.grey[800]!,
-            Colors.grey[900]!,
+            const Color(0xFF151820)!,
+            const Color(0xFF151820)!,
+            const Color(0xFF151820)!,
           ],
           stops: [
             _animation.value - 0.3,
@@ -215,3 +215,13 @@ class _SkeletonLoadingState extends State<SkeletonLoading>
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

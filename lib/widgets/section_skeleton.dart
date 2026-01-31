@@ -91,9 +91,9 @@ class _SectionSkeletonState extends State<SectionSkeleton>
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
           colors: [
-            Colors.grey[900]!,
-            Colors.grey[800]!,
-            Colors.grey[900]!,
+            const Color(0xFF151820)!,
+            const Color(0xFF151820)!,
+            const Color(0xFF151820)!,
           ],
           stops: [
             _animation.value - 0.3,
@@ -149,9 +149,9 @@ class _BannerSkeletonState extends State<BannerSkeleton>
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: [
-                Colors.grey[900]!,
-                Colors.grey[800]!,
-                Colors.grey[900]!,
+                const Color(0xFF151820)!,
+                const Color(0xFF151820)!,
+                const Color(0xFF151820)!,
               ],
               stops: [
                 _animation.value - 0.3,
@@ -165,3 +165,13 @@ class _BannerSkeletonState extends State<BannerSkeleton>
     );
   }
 }
+
+
+
+
+
+
+
+
+
+
